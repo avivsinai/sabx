@@ -328,9 +328,8 @@ func queuePurgeCmd() *cobra.Command {
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
 			params := url.Values{}
-			if purgeAll {
-				// no additional params required; SAB interprets empty purge as full purge
-			}
+			// Note: when purgeAll is true, no additional params required;
+			// SAB interprets empty purge as full purge
 			if search != "" {
 				params.Set("search", search)
 			}
