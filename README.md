@@ -20,7 +20,8 @@ cd sabx
 go build ./cmd/sabx
 ./sabx --help
 ```
-> Homebrew, Scoop, and Docker images will land in the first public release. See [CONTRIBUTING](CONTRIBUTING.md) if you want to help wire up the packaging matrix à la [`gh`](https://github.com/cli/cli).
+
+Pre-built archives, Homebrew, Scoop, winget manifests, and multi-arch Docker images are produced via [GoReleaser](tools/goreleaser.yaml) on tagged releases.
 
 ## Quickstart
 ```bash
@@ -39,6 +40,9 @@ sabx rss run TVFeed
 
 # Update scheduler to pause nightly
 sabx schedule set NightPause --set command=pause --set day=mon-sun --set hour=01 --set min=00
+
+# Launch the live dashboard
+sabx top
 ```
 
 ## Configuration & Profiles
@@ -53,6 +57,9 @@ Run `sabx <command> --help` for details. Key groups mirror the SABnzbd UI:
 - `rss`, `categories`, `schedule`: full CRUD against named config sections.
 - `config`: generic `get`, `set`, and `delete` for any SABnzbd config section.
 - `server` & `speed`: restart/shutdown and global speed limit controls.
+- `dump`: export sanitized configuration or live state snapshots.
+- `top`: Bubble Tea dashboard for real-time queue and history monitoring.
+- `extension`: install/list/remove `sabx-<name>` extensions (GitHub repos or local).
 - `doctor`: connectivity & health checks.
 
 ## Development
@@ -65,3 +72,10 @@ go test ./...
 ./sabx status
 ```
 See [AGENTS.md](AGENTS.md) for deeper contributor guidance, including architecture notes and testing tips.
+
+## Extensions
+- Install from GitHub: `sabx extension install avivsinai/sabx-tv-tools`
+- Execute: once installed, run `sabx tv-tools ...` and the CLI will forward arguments to the `sabx-tv-tools` binary/script.
+- List or remove extensions with `sabx extension list` and `sabx extension remove <name>`.
+
+Extensions live under `~/.sabx/extensions` and can also be distributed by placing `sabx-<name>` executables on `PATH`.

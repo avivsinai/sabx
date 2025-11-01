@@ -1,0 +1,72 @@
+project_name: sabx
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - id: sabx
+    main: ./cmd/sabx
+    binary: sabx
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+archives:
+  - id: sabx-archive
+    builds: [sabx]
+    format: tar.gz
+    replacements:
+      darwin: macOS
+
+brews:
+  - name: sabx
+    repository:
+      owner: sabx
+      name: homebrew-tap
+      branch: main
+    description: "Full-fidelity SABnzbd CLI"
+    homepage: https://github.com/sabx/sabx
+    license: MIT
+    install: |
+      bin.install "sabx"
+    test: |
+      system "#{bin}/sabx", "--help"
+    commit_author:
+      name: sabx automation
+      email: releases@sabx.dev
+scoop:
+  bucket:
+    owner: sabx
+    name: scoop-bucket
+    branch: main
+  homepage: https://github.com/sabx/sabx
+  description: Full-fidelity SABnzbd CLI
+  license: MIT
+  url_template: "{{ .DownloadURL }}"
+  sha256_template: "{{ .SHA256 }}"
+  commit_author:
+    name: sabx automation
+    email: releases@sabx.dev
+winget:
+  publisher: sabx
+  package: sabx
+  homepage: https://github.com/sabx/sabx
+  short_description: Full-fidelity SABnzbd CLI
+  license: MIT
+  author: sabx
+  url_template: "{{ .DownloadURL }}"
+  sha256_template: "{{ .SHA256 }}"
+dockers:
+  - image_templates:
+      - "ghcr.io/sabx/sabx:{{ .Tag }}"
+      - "ghcr.io/sabx/sabx:latest"
+    dockerfile: Dockerfile.release
+    build_flag_templates:
+      - "--platform=linux/amd64,linux/arm64"
+checksum:
+  name_template: "checksums.txt"
+release:
+  github:
+    owner: sabx
+    name: sabx
+  draft: false
+  prerelease: false

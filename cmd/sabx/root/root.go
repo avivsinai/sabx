@@ -12,6 +12,7 @@ import (
 	"github.com/sabx/sabx/internal/auth"
 	"github.com/sabx/sabx/internal/cobraext"
 	"github.com/sabx/sabx/internal/config"
+	"github.com/sabx/sabx/internal/extensions"
 	"github.com/sabx/sabx/internal/output"
 	"github.com/sabx/sabx/internal/sabapi"
 )
@@ -92,6 +93,9 @@ func init() {
 	rootCmd.AddCommand(scheduleCmd())
 	rootCmd.AddCommand(serverCmd())
 	rootCmd.AddCommand(speedCmd())
+	rootCmd.AddCommand(dumpCmd())
+	rootCmd.AddCommand(topCmd())
+	rootCmd.AddCommand(extensionsCmd())
 	rootCmd.AddCommand(completionCmd())
 	rootCmd.AddCommand(doctorCmd())
 	rootCmd.AddCommand(versionCmd())
@@ -100,13 +104,42 @@ func init() {
 
 // Execute runs the CLI.
 func Execute() error {
-	if err := rootCmd.Execute(); err != nil {
-		if !quietFlag {
-			fmt.Fprintln(os.Stderr, err)
-		}
-		return err
+	return ExecuteWithArgs(os.Args[1:])
+}
+
+// ExecuteWithArgs exposes execution for testing and extension fallback.
+func ExecuteWithArgs(args []string) error {
+	rootCmd.SetArgs(args)
+	_, err := rootCmd.ExecuteC()
+	if err == nil {
+		return nil
 	}
-	return nil
+
+	if isUnknownCommandError(err) {
+		name, extArgs, ok := extensions.ExtractExtensionCommand(args)
+		if ok && name != "" {
+			if execErr := extensionExecFallback(name, extArgs); execErr == nil {
+				return nil
+			} else {
+				if !quietFlag {
+					fmt.Fprintln(os.Stderr, execErr)
+				}
+				return execErr
+			}
+		}
+	}
+
+	if !quietFlag {
+		fmt.Fprintln(os.Stderr, err)
+	}
+	return err
+}
+
+func isUnknownCommandError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "unknown command")
 }
 
 func resolveConnection(cfg *config.Config) (profile, baseURL, apiKey string, err error) {

@@ -182,7 +182,7 @@ func (c *Client) AddURL(ctx context.Context, nzbURL string, opts AddOptions) (*A
 		params.Set("priority", fmt.Sprintf("%d", *opts.Priority))
 	}
 	if opts.Password != "" {
-		params.Set("pp", opts.Password)
+		params.Set("password", opts.Password)
 	}
 	if opts.Script != "" {
 		params.Set("script", opts.Script)
@@ -217,7 +217,7 @@ func (c *Client) AddFile(ctx context.Context, path string, opts AddOptions) (*Ad
 		fields["cat"] = opts.Category
 	}
 	if opts.Password != "" {
-		fields["pp"] = opts.Password
+		fields["password"] = opts.Password
 	}
 	if opts.Script != "" {
 		fields["script"] = opts.Script
@@ -345,8 +345,8 @@ func (c *Client) QueueSetPassword(ctx context.Context, id, password string) erro
 // QueueRename changes the display name of a queue item.
 func (c *Client) QueueRename(ctx context.Context, id, name string) error {
 	params := url.Values{}
-	params.Set("value", name)
-	params.Set("value2", id)
+	params.Set("value", id)
+	params.Set("value2", name)
 	return c.QueueAction(ctx, "rename", params)
 }
 

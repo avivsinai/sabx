@@ -16,17 +16,17 @@ var (
 )
 
 func versionCmd() *cobra.Command {
-    cmd := &cobra.Command{
-        Use:   "version",
-        Short: "Print sabx version information",
-        Annotations: map[string]string{
-            "skipPersistent": "true",
-        },
-        RunE: func(cmd *cobra.Command, args []string) error {
-            info := map[string]string{
-                "version": buildVersion,
-                "commit":  buildCommit,
-                "date":    buildDate,
+	cmd := &cobra.Command{
+		Use:   "version",
+		Short: "Print sabx version information",
+		Annotations: map[string]string{
+			"skipPersistent": "true",
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info := map[string]string{
+				"version": buildVersion,
+				"commit":  buildCommit,
+				"date":    buildDate,
 			}
 			if info["commit"] == "" || info["date"] == "" {
 				if bi, ok := debug.ReadBuildInfo(); ok && bi != nil {

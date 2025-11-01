@@ -4,6 +4,8 @@
 - `cmd/sabx/` — Cobra command tree; `main.go` compiles the CLI binary. Subpackages under `cmd/sabx/root/` group commands by SABnzbd feature (queue, history, config, rss, etc.).
 - `internal/sabapi/` — typed HTTP client and models for the SABnzbd API; treat as the canonical integration layer.
 - `internal/{config,auth,output}` — configuration loading, keyring integration, and output formatting helpers shared by commands.
+- `internal/extensions` — manages the `sabx extension` lifecycle (install/list/remove + PATH discovery).
+- `internal/ui/top` — Bubble Tea dashboard powering `sabx top`.
 - `go.mod` / `go.sum` — Go module definition; keep dependencies minimal and reproducible.
 
 ## Build, Test, and Development Commands
