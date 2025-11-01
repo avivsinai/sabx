@@ -2,6 +2,8 @@ module github.com/sabx/sabx
 
 go 1.24.0
 
+toolchain go1.25.3
+
 require (
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/docker/docker v25.0.5+incompatible
