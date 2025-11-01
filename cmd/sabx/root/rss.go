@@ -210,44 +210,19 @@ type rssFeed struct {
 }
 
 func parseRSSFeeds(m map[string]any) []rssFeed {
-	feeds := []rssFeed{}
-
 	// SABnzbd returns RSS config as: {"config": {"rss": [...]}}
-	var raw map[string]any
-	if config, ok := m["config"].(map[string]any); ok {
-		raw = config
-	} else {
-		raw = extractValueMap(m)
+	config, ok := m["config"].(map[string]any)
+	if !ok {
+		return []rssFeed{}
 	}
 
-	// Try to find RSS feeds in various locations
-	var list []any
-
-	// Check raw["rss"] first (actual SABnzbd response)
-	if rssList, ok := raw["rss"].([]any); ok {
-		list = rssList
-	} else if feedsList, ok := raw["feeds"].([]any); ok {
-		// Fallback: raw["feeds"]
-		list = feedsList
-	} else if keyed, ok := raw["feeds"].(map[string]any); ok {
-		// Some SAB builds return map keyed by feed name
-		for name, payload := range keyed {
-			feeds = append(feeds, rssFeedFrom(name, payload))
-		}
-		return feeds
-	} else {
-		// Last resort: iterate entire map
-		for name, payload := range raw {
-			if name == "feeds" || name == "rss" {
-				continue
-			}
-			feeds = append(feeds, rssFeedFrom(name, payload))
-		}
-		return feeds
+	rssList, ok := config["rss"].([]any)
+	if !ok {
+		return []rssFeed{}
 	}
 
-	// Parse the list of feeds
-	for _, item := range list {
+	feeds := make([]rssFeed, 0, len(rssList))
+	for _, item := range rssList {
 		feed := rssFeedFrom("", item)
 		feeds = append(feeds, feed)
 	}
