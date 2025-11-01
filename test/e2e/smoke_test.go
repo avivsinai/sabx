@@ -124,10 +124,12 @@ func newHarness(ctx context.Context, t *testing.T) (*harness, error) {
 	}
 
 	req := tc.ContainerRequest{
-		Image:        "ghcr.io/sabnzbd/sabnzbd:latest",
+		Image:        "lscr.io/linuxserver/sabnzbd:latest",
 		ExposedPorts: []string{"8080/tcp"},
 		Env: map[string]string{
-			"SAB_CONFIG_DIR": "/config",
+			"PUID": "1000",
+			"PGID": "1000",
+			"TZ":   "UTC",
 		},
 		HostConfigModifier: func(hc *containertypes.HostConfig) {
 			hc.Binds = append(hc.Binds, fmt.Sprintf("%s:/config", configDir))
