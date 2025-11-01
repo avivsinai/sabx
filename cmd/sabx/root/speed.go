@@ -60,21 +60,17 @@ func speedShowCmd() *cobra.Command {
 
 func speedLimitCmd() *cobra.Command {
 	var rate string
-	var mbps float64
 	var remove bool
 	cmd := &cobra.Command{
 		Use:   "limit",
 		Short: "Set the global speed limit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			rateChanged := cmd.Flags().Changed("rate")
-			mbpsChanged := cmd.Flags().Changed("mbps")
-
 			if remove {
-				if rateChanged || mbpsChanged {
-					return errors.New("use --none without --rate or --mbps")
+				if cmd.Flags().Changed("rate") {
+					return errors.New("use --none without --rate")
 				}
-			} else if !rateChanged && !mbpsChanged {
-				return errors.New("provide --rate or --mbps (deprecated) or use --none")
+			} else if !cmd.Flags().Changed("rate") {
+				return errors.New("provide --rate or use --none")
 			}
 			app, err := getApp(cmd)
 			if err != nil {
@@ -93,41 +89,21 @@ func speedLimitCmd() *cobra.Command {
 				return app.Printer.Print("Speed limit removed")
 			}
 
-			var normalized string
-			if rateChanged {
-				parsed, err := normalizeSpeedLimitInput(rate)
-				if err != nil {
-					return err
-				}
-				normalized = parsed
-			} else {
-				if mbps <= 0 {
-					return errors.New("provide a positive value for --mbps")
-				}
-				normalized = formatFromMbps(mbps)
+			normalized, err := normalizeSpeedLimitInput(rate)
+			if err != nil {
+				return err
 			}
 
 			if err := app.Client.SpeedLimit(ctx, &normalized); err != nil {
 				return err
 			}
 			if app.Printer.JSON {
-				payload := map[string]any{"value": normalized}
-				if mbpsChanged {
-					payload["mbps"] = mbps
-				}
-				if rateChanged {
-					payload["input"] = rate
-				}
-				return app.Printer.Print(payload)
+				return app.Printer.Print(map[string]any{"value": normalized, "input": rate})
 			}
-			if rateChanged {
-				return app.Printer.Print(fmt.Sprintf("Speed limit set to %s", normalized))
-			}
-			return app.Printer.Print(fmt.Sprintf("Speed limit set to %.2f Mbps (%s)", mbps, normalized))
+			return app.Printer.Print(fmt.Sprintf("Speed limit set to %s", normalized))
 		},
 	}
 	cmd.Flags().StringVar(&rate, "rate", "", "Limit rate (examples: 50%, 800K, 4M, 4MB/s, 10Mbps)")
-	cmd.Flags().Float64Var(&mbps, "mbps", 0, "Megabits per second limit (deprecated; use --rate)")
 	cmd.Flags().BoolVar(&remove, "none", false, "Remove the limit")
 	return cmd
 }
@@ -303,10 +279,4 @@ func formatFloat(v float64) string {
 		return strconv.FormatInt(int64(math.Round(v)), 10)
 	}
 	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.3f", v), "0"), ".")
-}
-
-func formatFromMbps(mbps float64) string {
-	bytesPerSecond := (mbps * 1_000_000) / 8
-	kiloPerSecond := bytesPerSecond / 1000
-	return formatAbsoluteRate(kiloPerSecond)
 }

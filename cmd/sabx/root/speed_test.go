@@ -38,14 +38,3 @@ func TestNormalizeSpeedLimitInputError(t *testing.T) {
 		t.Fatal("expected error for negative percent, got nil")
 	}
 }
-
-func TestFormatFromMbps(t *testing.T) {
-	t.Parallel()
-
-	if got := formatFromMbps(10); got != "1.25M" {
-		t.Fatalf("formatFromMbps(10) = %q, want 1.25M", got)
-	}
-	if got := formatFromMbps(0.5); got != "62.5K" {
-		t.Fatalf("formatFromMbps(0.5) = %q, want 62.5K", got)
-	}
-}
