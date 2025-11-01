@@ -256,14 +256,15 @@ func queueResumeCmd() *cobra.Command {
 }
 
 func queuePurgeCmd() *cobra.Command {
-	var failedOnly bool
-	var completedOnly bool
+	var purgeAll bool
+	var search string
+	var deleteData bool
 	cmd := &cobra.Command{
 		Use:   "purge",
 		Short: "Purge queue entries",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if failedOnly && completedOnly {
-				return errors.New("choose either --failed or --completed, not both")
+			if !purgeAll && strings.TrimSpace(search) == "" {
+				return errors.New("provide --all to purge everything or --search to filter items")
 			}
 			app, err := getApp(cmd)
 			if err != nil {
@@ -272,16 +273,21 @@ func queuePurgeCmd() *cobra.Command {
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
 			params := url.Values{}
-			if failedOnly {
-				params.Set("value", "failed")
-			} else if completedOnly {
-				params.Set("value", "finished")
+			if purgeAll {
+				// no additional params required; SAB interprets empty purge as full purge
+			}
+			if search != "" {
+				params.Set("search", search)
+			}
+			if deleteData {
+				params.Set("del_files", "1")
 			}
 			return app.Client.QueueAction(ctx, "purge", params)
 		},
 	}
-	cmd.Flags().BoolVar(&failedOnly, "failed", false, "Purge only failed items")
-	cmd.Flags().BoolVar(&completedOnly, "completed", false, "Purge completed items")
+	cmd.Flags().BoolVar(&purgeAll, "all", false, "Purge every queue entry")
+	cmd.Flags().StringVar(&search, "search", "", "Purge items whose name matches this substring")
+	cmd.Flags().BoolVar(&deleteData, "with-data", false, "Also delete downloaded data")
 	return cmd
 }
 
@@ -294,7 +300,6 @@ func queueItemCmd() *cobra.Command {
 	cmd.AddCommand(queueItemShowCmd())
 	cmd.AddCommand(queueItemPauseCmd())
 	cmd.AddCommand(queueItemResumeCmd())
-	cmd.AddCommand(queueItemRetryCmd())
 	cmd.AddCommand(queueItemDeleteCmd())
 	cmd.AddCommand(queueItemPriorityCmd())
 	cmd.AddCommand(queueItemMoveCmd())
@@ -371,24 +376,6 @@ func queueItemResumeCmd() *cobra.Command {
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
 			return app.Client.QueueResume(ctx, args[0])
-		},
-	}
-	return cmd
-}
-
-func queueItemRetryCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "retry <nzo-id>",
-		Short: "Retry a failed item",
-		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			app, err := getApp(cmd)
-			if err != nil {
-				return err
-			}
-			ctx, cancel := timeoutContext(cmd.Context())
-			defer cancel()
-			return app.Client.QueueRetry(ctx, args[0])
 		},
 	}
 	return cmd
@@ -520,24 +507,37 @@ func queueItemSetCmd() *cobra.Command {
 					return err
 				}
 			}
+			var renameName string
 			if name != "" {
-				if err := app.Client.QueueRename(ctx, id, name); err != nil {
+				renameName = name
+			} else if password != "" {
+				slot, err := findQueueSlot(ctx, app.Client, id)
+				if err != nil {
 					return err
 				}
+				renameName = slot.Filename
+				if renameName == "" {
+					return fmt.Errorf("cannot determine current name for %s; provide --name explicitly", id)
+				}
 			}
-			if password != "" {
-				if err := app.Client.QueueSetPassword(ctx, id, password); err != nil {
+			if renameName != "" || password != "" {
+				if err := app.Client.QueueRename(ctx, id, renameName, password); err != nil {
 					return err
 				}
 			}
 
+			effectiveName := renameName
+			if effectiveName == "" {
+				effectiveName = name
+			}
+
 			if app.Printer.JSON {
 				payload := map[string]any{
-					"nzo_id":   id,
-					"category": category,
-					"script":   script,
-					"password": password != "",
-					"name":     name,
+					"nzo_id":       id,
+					"category":     category,
+					"script":       script,
+					"password_set": password != "",
+					"name":         effectiveName,
 				}
 				return app.Printer.Print(payload)
 			}

@@ -3,6 +3,9 @@ package root
 import (
 	"errors"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -56,14 +59,22 @@ func speedShowCmd() *cobra.Command {
 }
 
 func speedLimitCmd() *cobra.Command {
+	var rate string
 	var mbps float64
 	var remove bool
 	cmd := &cobra.Command{
 		Use:   "limit",
 		Short: "Set the global speed limit",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if mbps <= 0 && !remove {
-				return errors.New("provide --mbps or --none")
+			rateChanged := cmd.Flags().Changed("rate")
+			mbpsChanged := cmd.Flags().Changed("mbps")
+
+			if remove {
+				if rateChanged || mbpsChanged {
+					return errors.New("use --none without --rate or --mbps")
+				}
+			} else if !rateChanged && !mbpsChanged {
+				return errors.New("provide --rate or --mbps (deprecated) or use --none")
 			}
 			app, err := getApp(cmd)
 			if err != nil {
@@ -82,17 +93,220 @@ func speedLimitCmd() *cobra.Command {
 				return app.Printer.Print("Speed limit removed")
 			}
 
-			value := mbps
-			if err := app.Client.SpeedLimit(ctx, &value); err != nil {
+			var normalized string
+			if rateChanged {
+				parsed, err := normalizeSpeedLimitInput(rate)
+				if err != nil {
+					return err
+				}
+				normalized = parsed
+			} else {
+				if mbps <= 0 {
+					return errors.New("provide a positive value for --mbps")
+				}
+				normalized = formatFromMbps(mbps)
+			}
+
+			if err := app.Client.SpeedLimit(ctx, &normalized); err != nil {
 				return err
 			}
 			if app.Printer.JSON {
-				return app.Printer.Print(map[string]any{"mbps": mbps})
+				payload := map[string]any{"value": normalized}
+				if mbpsChanged {
+					payload["mbps"] = mbps
+				}
+				if rateChanged {
+					payload["input"] = rate
+				}
+				return app.Printer.Print(payload)
 			}
-			return app.Printer.Print(fmt.Sprintf("Speed limit set to %.2f Mbps", mbps))
+			if rateChanged {
+				return app.Printer.Print(fmt.Sprintf("Speed limit set to %s", normalized))
+			}
+			return app.Printer.Print(fmt.Sprintf("Speed limit set to %.2f Mbps (%s)", mbps, normalized))
 		},
 	}
-	cmd.Flags().Float64Var(&mbps, "mbps", 0, "Megabits per second limit")
+	cmd.Flags().StringVar(&rate, "rate", "", "Limit rate (examples: 50%, 800K, 4M, 4MB/s, 10Mbps)")
+	cmd.Flags().Float64Var(&mbps, "mbps", 0, "Megabits per second limit (deprecated; use --rate)")
 	cmd.Flags().BoolVar(&remove, "none", false, "Remove the limit")
 	return cmd
+}
+
+func normalizeSpeedLimitInput(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		return "", errors.New("rate string must not be empty")
+	}
+	if strings.HasSuffix(value, "%") {
+		number := strings.TrimSpace(strings.TrimSuffix(value, "%"))
+		if number == "" {
+			return "", errors.New("invalid percentage value")
+		}
+		percent, err := strconv.ParseFloat(number, 64)
+		if err != nil {
+			return "", fmt.Errorf("invalid percentage %q: %w", raw, err)
+		}
+		if percent < 0 {
+			return "", errors.New("percentage must be non-negative")
+		}
+		return formatFloat(percent), nil
+	}
+
+	compact := strings.ReplaceAll(value, " ", "")
+	numPart, unitPart := splitRate(compact)
+	if numPart == "" || unitPart == "" {
+		return "", fmt.Errorf("invalid rate %q: specify a numeric value and unit (e.g. 800K, 4MB/s, 10Mbps)", raw)
+	}
+
+	number, err := strconv.ParseFloat(numPart, 64)
+	if err != nil {
+		return "", fmt.Errorf("invalid rate %q: %w", raw, err)
+	}
+	if number <= 0 {
+		return "", errors.New("rate must be positive")
+	}
+
+	bytesPerSecond, err := resolveBytesPerSecond(number, unitPart)
+	if err != nil {
+		return "", err
+	}
+	kiloPerSecond := bytesPerSecond / 1000
+	return formatAbsoluteRate(kiloPerSecond), nil
+}
+
+func splitRate(input string) (string, string) {
+	if input == "" {
+		return "", ""
+	}
+	i := 0
+	for i < len(input) {
+		c := input[i]
+		if (c >= '0' && c <= '9') || c == '.' {
+			i++
+			continue
+		}
+		break
+	}
+	return input[:i], input[i:]
+}
+
+func resolveBytesPerSecond(value float64, unit string) (float64, error) {
+	lower := strings.ToLower(unit)
+	clean := lower
+	for _, suffix := range []string{"/sec", "/s", "ps"} {
+		if strings.HasSuffix(clean, suffix) {
+			clean = strings.TrimSuffix(clean, suffix)
+			break
+		}
+	}
+	isBits := strings.Contains(clean, "bit") || strings.HasSuffix(lower, "bps")
+	if isBits && strings.Contains(unit, "B") {
+		// Uppercase B signals bytes (e.g., MBps)
+		isBits = false
+	}
+
+	base := clean
+	switch {
+	case strings.HasPrefix(base, "kib"):
+		base = "kib"
+	case strings.HasPrefix(base, "kb"):
+		base = "kb"
+	case strings.HasPrefix(base, "ki"):
+		base = "kib"
+	case strings.HasPrefix(base, "k"):
+		base = "kb"
+	case strings.HasPrefix(base, "mib"):
+		base = "mib"
+	case strings.HasPrefix(base, "mb"):
+		base = "mb"
+	case strings.HasPrefix(base, "mi"):
+		base = "mib"
+	case strings.HasPrefix(base, "m"):
+		base = "mb"
+	case strings.HasPrefix(base, "gib"):
+		base = "gib"
+	case strings.HasPrefix(base, "gb"):
+		base = "gb"
+	case strings.HasPrefix(base, "gi"):
+		base = "gib"
+	case strings.HasPrefix(base, "g"):
+		base = "gb"
+	case strings.HasPrefix(base, "b"):
+		base = "b"
+	default:
+		return 0, fmt.Errorf("unsupported unit %q", unit)
+	}
+
+	if isBits {
+		return bitsToBytesPerSecond(value, base), nil
+	}
+	return bytesPerSecond(value, base), nil
+}
+
+func bytesPerSecond(value float64, base string) float64 {
+	switch base {
+	case "kb":
+		return value * 1000
+	case "kib":
+		return value * 1024
+	case "mb":
+		return value * 1000 * 1000
+	case "mib":
+		return value * 1024 * 1024
+	case "gb":
+		return value * 1000 * 1000 * 1000
+	case "gib":
+		return value * 1024 * 1024 * 1024
+	case "b":
+		return value
+	default:
+		return value
+	}
+}
+
+func bitsToBytesPerSecond(value float64, base string) float64 {
+	var multiplier float64
+	switch base {
+	case "kb":
+		multiplier = 1000
+	case "kib":
+		multiplier = 1024
+	case "mb":
+		multiplier = 1000 * 1000
+	case "mib":
+		multiplier = 1024 * 1024
+	case "gb":
+		multiplier = 1000 * 1000 * 1000
+	case "gib":
+		multiplier = 1024 * 1024 * 1024
+	case "b":
+		multiplier = 1
+	default:
+		multiplier = 1
+	}
+	bitsPerSecond := value * multiplier
+	return bitsPerSecond / 8
+}
+
+func formatAbsoluteRate(kiloPerSecond float64) string {
+	if kiloPerSecond >= 1000 {
+		return formatFloat(kiloPerSecond/1000) + "M"
+	}
+	return formatFloat(kiloPerSecond) + "K"
+}
+
+func formatFloat(v float64) string {
+	if math.IsInf(v, 0) || math.IsNaN(v) {
+		return "0"
+	}
+	if math.Abs(v-math.Round(v)) < 1e-6 {
+		return strconv.FormatInt(int64(math.Round(v)), 10)
+	}
+	return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%.3f", v), "0"), ".")
+}
+
+func formatFromMbps(mbps float64) string {
+	bytesPerSecond := (mbps * 1_000_000) / 8
+	kiloPerSecond := bytesPerSecond / 1000
+	return formatAbsoluteRate(kiloPerSecond)
 }

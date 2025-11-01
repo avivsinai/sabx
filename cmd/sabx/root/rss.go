@@ -162,7 +162,7 @@ func rssDeleteCmd() *cobra.Command {
 			}
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
-			if err := app.Client.ConfigDeleteNamed(ctx, "rss", name); err != nil {
+			if err := app.Client.ConfigDelete(ctx, "rss", name); err != nil {
 				return err
 			}
 			return app.Printer.Print("RSS feed deleted")
@@ -274,16 +274,18 @@ func extractValueMap(m map[string]any) map[string]any {
 }
 
 func applyRSSProperties(ctx context.Context, app *cobraext.App, name string, props map[string]string) error {
+	values := url.Values{}
 	for key, val := range props {
 		if val == "" {
 			continue
 		}
-		values := url.Values{}
-		values.Set("keyword", key)
-		values.Add("value", val)
-		if err := app.Client.ConfigSet(ctx, "rss", name, values); err != nil {
-			return err
-		}
+		values.Set(key, val)
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	if err := app.Client.ConfigSet(ctx, "rss", name, values); err != nil {
+		return err
 	}
 	return nil
 }

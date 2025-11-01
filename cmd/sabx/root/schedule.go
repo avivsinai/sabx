@@ -126,7 +126,7 @@ func scheduleDeleteCmd() *cobra.Command {
 			}
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
-			if err := app.Client.ConfigDeleteNamed(ctx, "scheduler", args[0]); err != nil {
+			if err := app.Client.ConfigDelete(ctx, "scheduler", args[0]); err != nil {
 				return err
 			}
 			return app.Printer.Print("Task deleted")

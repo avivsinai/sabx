@@ -290,22 +290,14 @@ func (c *Client) QueueResume(ctx context.Context, id string) error {
 	return c.QueueAction(ctx, "resume", params)
 }
 
-// QueueRetry retries an item.
-func (c *Client) QueueRetry(ctx context.Context, id string) error {
-	params := url.Values{}
-	params.Set("value", id)
-	return c.QueueAction(ctx, "retry", params)
-}
-
 // QueueDelete removes an item.
 func (c *Client) QueueDelete(ctx context.Context, ids []string, withData bool) error {
 	params := url.Values{}
-	for _, id := range ids {
-		params.Add("value", id)
+	if len(ids) > 0 {
+		params.Set("value", strings.Join(ids, ","))
 	}
 	if withData {
 		params.Set("del_files", "1")
-		params.Set("value2", "1")
 	}
 	return c.QueueAction(ctx, "delete", params)
 }
@@ -321,32 +313,27 @@ func (c *Client) QueueSetPriority(ctx context.Context, id string, priority int) 
 // QueueSetCategory updates an item's category.
 func (c *Client) QueueSetCategory(ctx context.Context, id, category string) error {
 	params := url.Values{}
-	params.Set("value", category)
-	params.Set("value2", id)
-	return c.QueueAction(ctx, "set_category", params)
+	params.Set("value", id)
+	params.Set("value2", category)
+	return c.call(ctx, "change_cat", params, nil)
 }
 
 // QueueSetScript sets the post-processing script for an item.
 func (c *Client) QueueSetScript(ctx context.Context, id, script string) error {
 	params := url.Values{}
-	params.Set("value", script)
-	params.Set("value2", id)
-	return c.QueueAction(ctx, "set_script", params)
-}
-
-// QueueSetPassword sets the decryption password for an item.
-func (c *Client) QueueSetPassword(ctx context.Context, id, password string) error {
-	params := url.Values{}
-	params.Set("value", password)
-	params.Set("value2", id)
-	return c.QueueAction(ctx, "set_password", params)
+	params.Set("value", id)
+	params.Set("value2", script)
+	return c.call(ctx, "change_script", params, nil)
 }
 
 // QueueRename changes the display name of a queue item.
-func (c *Client) QueueRename(ctx context.Context, id, name string) error {
+func (c *Client) QueueRename(ctx context.Context, id, name, password string) error {
 	params := url.Values{}
 	params.Set("value", id)
 	params.Set("value2", name)
+	if password != "" {
+		params.Set("value3", password)
+	}
 	return c.QueueAction(ctx, "rename", params)
 }
 
@@ -355,15 +342,15 @@ func (c *Client) QueueSwitchPosition(ctx context.Context, id string, position in
 	params := url.Values{}
 	params.Set("value", id)
 	params.Set("value2", fmt.Sprintf("%d", position))
-	return c.QueueAction(ctx, "switch", params)
+	return c.call(ctx, "switch", params, nil)
 }
 
 // QueueSort sorts the queue by supported criteria.
 func (c *Client) QueueSort(ctx context.Context, sortCrit, direction string) error {
 	params := url.Values{}
-	params.Set("value", sortCrit)
+	params.Set("sort", sortCrit)
 	if direction != "" {
-		params.Set("value2", direction)
+		params.Set("dir", direction)
 	}
 	return c.QueueAction(ctx, "sort", params)
 }
@@ -411,16 +398,17 @@ type HistorySlot struct {
 // DeleteHistory removes items from history.
 func (c *Client) DeleteHistory(ctx context.Context, ids []string, failed, all bool) error {
 	params := url.Values{}
+	params.Set("name", "delete")
 	switch {
 	case all:
-		params.Set("name", "delete_all")
+		params.Set("value", "all")
 	case failed:
-		params.Set("name", "delete_failed")
+		params.Set("value", "failed")
 	default:
-		params.Set("name", "delete")
-		for _, id := range ids {
-			params.Add("value", id)
+		if len(ids) == 0 {
+			return errors.New("no history ids provided")
 		}
+		params.Set("value", strings.Join(ids, ","))
 	}
 	return c.call(ctx, "history", params, nil)
 }
@@ -428,9 +416,13 @@ func (c *Client) DeleteHistory(ctx context.Context, ids []string, failed, all bo
 // HistoryRetry re-queues a previously downloaded item.
 func (c *Client) HistoryRetry(ctx context.Context, id string) error {
 	params := url.Values{}
-	params.Set("name", "retry")
 	params.Set("value", id)
-	return c.call(ctx, "history", params, nil)
+	return c.call(ctx, "retry", params, nil)
+}
+
+// HistoryRetryAll re-queues all failed downloads.
+func (c *Client) HistoryRetryAll(ctx context.Context) error {
+	return c.call(ctx, "retry_all", nil, nil)
 }
 
 // ConfigGet retrieves configuration for a given section (and optional key).
@@ -462,19 +454,11 @@ func (c *Client) ConfigSet(ctx context.Context, section, name string, values url
 	return c.call(ctx, "set_config", params, nil)
 }
 
-// ConfigDelete removes named config items.
+// ConfigDelete removes config entries by keyword (supports named sections).
 func (c *Client) ConfigDelete(ctx context.Context, section, name string) error {
 	params := url.Values{}
 	params.Set("section", section)
 	params.Set("keyword", name)
-	return c.call(ctx, "del_config", params, nil)
-}
-
-// ConfigDeleteNamed removes a named configuration item (rss feed, server, etc.).
-func (c *Client) ConfigDeleteNamed(ctx context.Context, section, name string) error {
-	params := url.Values{}
-	params.Set("section", section)
-	params.Set("name", name)
 	return c.call(ctx, "del_config", params, nil)
 }
 
@@ -484,13 +468,11 @@ func (c *Client) ServerControl(ctx context.Context, mode string) error {
 }
 
 // SpeedLimit sets the global speed limit.
-func (c *Client) SpeedLimit(ctx context.Context, limitMBps *float64) error {
+func (c *Client) SpeedLimit(ctx context.Context, normalizedValue *string) error {
 	params := url.Values{}
 	params.Set("name", "speedlimit")
-	if limitMBps != nil {
-		// SAB expects KB/s. Convert from Mbps.
-		kbps := (*limitMBps * 1000) / 8
-		params.Set("value", fmt.Sprintf("%.0f", kbps))
+	if normalizedValue != nil {
+		params.Set("value", *normalizedValue)
 	} else {
 		params.Set("value", "0")
 	}

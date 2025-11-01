@@ -149,7 +149,7 @@ func categoriesDeleteCmd() *cobra.Command {
 			}
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
-			if err := app.Client.ConfigDeleteNamed(ctx, "categories", name); err != nil {
+			if err := app.Client.ConfigDelete(ctx, "categories", name); err != nil {
 				return err
 			}
 			return app.Printer.Print("Category deleted")
@@ -196,16 +196,18 @@ func parseNamedConfig(m map[string]any) []namedConfig {
 }
 
 func applyNamedProperties(ctx context.Context, app *cobraext.App, section, name string, props map[string]string) error {
+	values := url.Values{}
 	for key, val := range props {
 		if val == "" {
 			continue
 		}
-		values := url.Values{}
-		values.Set("keyword", key)
-		values.Add("value", val)
-		if err := app.Client.ConfigSet(ctx, section, name, values); err != nil {
-			return err
-		}
+		values.Set(key, val)
+	}
+	if len(values) == 0 {
+		return nil
+	}
+	if err := app.Client.ConfigSet(ctx, section, name, values); err != nil {
+		return err
 	}
 	return nil
 }

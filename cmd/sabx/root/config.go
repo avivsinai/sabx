@@ -119,7 +119,7 @@ func configDeleteCmd() *cobra.Command {
 			defer cancel()
 
 			if name != "" {
-				if err := app.Client.ConfigDeleteNamed(ctx, section, name); err != nil {
+				if err := app.Client.ConfigDelete(ctx, section, name); err != nil {
 					return err
 				}
 			} else {

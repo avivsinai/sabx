@@ -126,10 +126,22 @@ func historyDeleteCmd() *cobra.Command {
 }
 
 func historyRetryCmd() *cobra.Command {
+	var retryAll bool
 	cmd := &cobra.Command{
-		Use:   "retry <nzo-id>",
-		Short: "Re-queue a history entry",
-		Args:  cobra.ExactArgs(1),
+		Use:   "retry [nzo-id]",
+		Short: "Re-queue history entries",
+		Args: func(cmd *cobra.Command, args []string) error {
+			if retryAll {
+				if len(args) > 0 {
+					return errors.New("do not provide IDs when using --all")
+				}
+				return nil
+			}
+			if len(args) != 1 {
+				return errors.New("provide an nzo-id or use --all")
+			}
+			return nil
+		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -137,11 +149,18 @@ func historyRetryCmd() *cobra.Command {
 			}
 			ctx, cancel := timeoutContext(cmd.Context())
 			defer cancel()
+			if retryAll {
+				if err := app.Client.HistoryRetryAll(ctx); err != nil {
+					return err
+				}
+				return app.Printer.Print("Re-queued all failed history entries")
+			}
 			if err := app.Client.HistoryRetry(ctx, args[0]); err != nil {
 				return err
 			}
-			return app.Printer.Print("Re-queued item")
+			return app.Printer.Print(fmt.Sprintf("Re-queued %s", args[0]))
 		},
 	}
+	cmd.Flags().BoolVar(&retryAll, "all", false, "Retry all failed history entries")
 	return cmd
 }
