@@ -105,7 +105,7 @@ func historyDeleteCmd() *cobra.Command {
 				return err
 			}
 
-			target := "selected entries"
+			var target string
 			if deleteAll {
 				target = "all entries"
 			} else if deleteFailed {

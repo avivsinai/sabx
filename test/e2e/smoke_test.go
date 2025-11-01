@@ -145,12 +145,12 @@ func newHarness(ctx context.Context, t *testing.T) (*harness, error) {
 
 	host, err := container.Host(ctx)
 	if err != nil {
-		container.Terminate(ctx) // best effort
+		_ = container.Terminate(ctx) // best effort
 		return nil, fmt.Errorf("resolve container host: %w", err)
 	}
 	mappedPort, err := container.MappedPort(ctx, "8080/tcp")
 	if err != nil {
-		container.Terminate(ctx)
+		_ = container.Terminate(ctx) // best effort
 		return nil, fmt.Errorf("resolve mapped port: %w", err)
 	}
 

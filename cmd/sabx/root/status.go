@@ -252,7 +252,7 @@ func intFrom(val any) int {
 		return v
 	case string:
 		var n int
-		fmt.Sscanf(v, "%d", &n)
+		_, _ = fmt.Sscanf(v, "%d", &n)
 		return n
 	default:
 		return 0
