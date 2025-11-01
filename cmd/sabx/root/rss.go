@@ -15,7 +15,7 @@ import (
 func rssCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "rss",
-		Short: "Manage SABnzbd RSS feeds",
+		Short: jsonShort("Manage SABnzbd RSS feeds"),
 	}
 
 	cmd.AddCommand(rssListCmd())
@@ -29,7 +29,7 @@ func rssCmd() *cobra.Command {
 func rssListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List configured RSS feeds",
+		Short: jsonShort("List configured RSS feeds"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -68,7 +68,7 @@ func rssAddCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Create a new RSS feed",
+		Short: jsonShort("Create a new RSS feed"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if urlStr == "" {
@@ -111,7 +111,7 @@ func rssSetCmd() *cobra.Command {
 	var entries []string
 	cmd := &cobra.Command{
 		Use:   "set <name>",
-		Short: "Update feed properties",
+		Short: jsonShort("Update feed properties"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(entries) == 0 {
@@ -152,7 +152,7 @@ func rssSetCmd() *cobra.Command {
 func rssDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <name>",
-		Short: "Delete an RSS feed",
+		Short: jsonShort("Delete an RSS feed"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -174,7 +174,7 @@ func rssDeleteCmd() *cobra.Command {
 func rssRunCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run [name]",
-		Short: "Run RSS fetch now",
+		Short: jsonShort("Run RSS fetch now"),
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var name string

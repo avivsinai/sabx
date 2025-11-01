@@ -13,12 +13,13 @@ import (
 func historyCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "history",
-		Short: "Inspect past downloads",
+		Short: jsonShort("Inspect past downloads"),
 	}
 
 	cmd.AddCommand(historyListCmd())
 	cmd.AddCommand(historyDeleteCmd())
 	cmd.AddCommand(historyRetryCmd())
+	cmd.AddCommand(historyMarkCompletedCmd())
 
 	return cmd
 }
@@ -30,7 +31,7 @@ func historyListCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List history entries",
+		Short: jsonShort("List history entries"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -82,7 +83,7 @@ func historyDeleteCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "delete [nzo-id ...]",
-		Short: "Delete history entries",
+		Short: jsonShort("Delete history entries"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if deleteAll || deleteFailed {
 				return nil
@@ -129,7 +130,7 @@ func historyRetryCmd() *cobra.Command {
 	var retryAll bool
 	cmd := &cobra.Command{
 		Use:   "retry [nzo-id]",
-		Short: "Re-queue history entries",
+		Short: jsonShort("Re-queue history entries"),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if retryAll {
 				if len(args) > 0 {
@@ -162,5 +163,36 @@ func historyRetryCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&retryAll, "all", false, "Retry all failed history entries")
+	return cmd
+}
+
+func historyMarkCompletedCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "mark-completed <nzo-id> [nzo-id...]",
+		Short: jsonShort("Mark history entries as completed"),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("provide at least one nzo-id")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.HistoryMarkCompleted(ctx, args); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"marked": args})
+			}
+			return app.Printer.Print(fmt.Sprintf("Marked %s as completed", strings.Join(args, ",")))
+		},
+	}
 	return cmd
 }

@@ -11,7 +11,7 @@ import (
 func scheduleCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "schedule",
-		Short: "Manage SABnzbd scheduler",
+		Short: jsonShort("Manage SABnzbd scheduler"),
 	}
 	cmd.AddCommand(scheduleListCmd())
 	cmd.AddCommand(scheduleAddCmd())
@@ -23,7 +23,7 @@ func scheduleCmd() *cobra.Command {
 func scheduleListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List scheduled tasks",
+		Short: jsonShort("List scheduled tasks"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -59,7 +59,7 @@ func scheduleAddCmd() *cobra.Command {
 	var entries []string
 	cmd := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a scheduled task",
+		Short: jsonShort("Add a scheduled task"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(entries) == 0 {
@@ -87,7 +87,7 @@ func scheduleSetCmd() *cobra.Command {
 	var entries []string
 	cmd := &cobra.Command{
 		Use:   "set <name>",
-		Short: "Update a scheduled task",
+		Short: jsonShort("Update a scheduled task"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(entries) == 0 {
@@ -117,7 +117,7 @@ func scheduleSetCmd() *cobra.Command {
 func scheduleDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <name>",
-		Short: "Delete a scheduled task",
+		Short: jsonShort("Delete a scheduled task"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)

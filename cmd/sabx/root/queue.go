@@ -17,7 +17,8 @@ import (
 func queueCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "queue",
-		Short: "Inspect and control the active queue",
+		Short: jsonShort("Inspect and control the active queue"),
+		Long:  appendJSONLong("Manage SABnzbd queue items: list, add, reorder, or modify jobs."),
 	}
 
 	cmd.AddCommand(queueListCmd())
@@ -25,6 +26,7 @@ func queueCmd() *cobra.Command {
 	cmd.AddCommand(queuePauseCmd())
 	cmd.AddCommand(queueResumeCmd())
 	cmd.AddCommand(queuePurgeCmd())
+	cmd.AddCommand(queueCompleteActionCmd())
 	cmd.AddCommand(queueItemCmd())
 	cmd.AddCommand(queueSortCmd())
 
@@ -38,7 +40,8 @@ func queueListCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "Show queue entries",
+		Short: jsonShort("List queue entries"),
+		Long:  appendJSONLong("Lists queue items, optionally filtering by search term or active download state."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -104,11 +107,13 @@ func queueListCmd() *cobra.Command {
 func queueAddCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add",
-		Short: "Add NZBs to the queue",
+		Short: jsonShort("Add NZBs to the queue"),
+		Long:  appendJSONLong("Add NZBs via URL, file upload, or server-side path."),
 	}
 
 	cmd.AddCommand(queueAddURLCmd())
 	cmd.AddCommand(queueAddFileCmd())
+	cmd.AddCommand(queueAddLocalCmd())
 
 	return cmd
 }
@@ -122,7 +127,8 @@ func queueAddURLCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "url <nzb-url>",
-		Short: "Add an NZB by URL",
+		Short: jsonShort("Add an NZB by URL"),
+		Long:  appendJSONLong("Fetch an NZB from a remote URL and enqueue it. Errors surface when SABnzbd rejects the NZB."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
@@ -166,7 +172,8 @@ func queueAddFileCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "file <path>",
-		Short: "Upload an NZB file",
+		Short: jsonShort("Upload an NZB file"),
+		Long:  appendJSONLong("Upload a local NZB file to SABnzbd. Errors surface if the file cannot be read or SABnzbd rejects it."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
@@ -201,6 +208,51 @@ func queueAddFileCmd() *cobra.Command {
 	return cmd
 }
 
+func queueAddLocalCmd() *cobra.Command {
+	var category string
+	var priorityStr string
+	var script string
+	var password string
+	var name string
+
+	cmd := &cobra.Command{
+		Use:   "local <path>",
+		Short: jsonShort("Register an NZB that already exists on the SABnzbd host"),
+		Long:  appendJSONLong("Register an NZB file already present on the SABnzbd server. Useful for shared storage."),
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			remotePath := args[0]
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			opts, err := buildAddOptions(priorityStr, category, script, password, name)
+			if err != nil {
+				return err
+			}
+
+			resp, err := app.Client.AddLocalFile(ctx, remotePath, opts)
+			if err != nil {
+				return err
+			}
+			if !resp.Success() {
+				return errors.New("sabnzbd refused nzb")
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(resp)
+			}
+			return app.Printer.Print(fmt.Sprintf("Queued %s", strings.Join(resp.NZOIDs, ",")))
+		},
+	}
+
+	bindAddFlags(cmd.Flags(), &category, &priorityStr, &script, &password, &name)
+	return cmd
+}
+
 func bindAddFlags(flags *pflag.FlagSet, category, priority, script, password, name *string) {
 	flags.StringVar(category, "cat", "", "Category to assign")
 	flags.StringVar(priority, "priority", "", "Priority (-1 low,0 normal,1 high,2 force)")
@@ -224,7 +276,8 @@ func buildAddOptions(priorityStr, category, script, password, name string) (saba
 func queuePauseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pause",
-		Short: "Pause the entire queue",
+		Short: jsonShort("Pause the entire queue"),
+		Long:  appendJSONLong("Pauses all active downloads via SABnzbd's queue API."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -241,7 +294,8 @@ func queuePauseCmd() *cobra.Command {
 func queueResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume",
-		Short: "Resume the entire queue",
+		Short: jsonShort("Resume the entire queue"),
+		Long:  appendJSONLong("Resumes paused downloads via SABnzbd's queue API."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -261,7 +315,8 @@ func queuePurgeCmd() *cobra.Command {
 	var deleteData bool
 	cmd := &cobra.Command{
 		Use:   "purge",
-		Short: "Purge queue entries",
+		Short: jsonShort("Purge queue entries"),
+		Long:  appendJSONLong("Deletes queue items by filter or entirely. Use --delete-data to remove downloaded files."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !purgeAll && strings.TrimSpace(search) == "" {
 				return errors.New("provide --all to purge everything or --search to filter items")
@@ -291,10 +346,60 @@ func queuePurgeCmd() *cobra.Command {
 	return cmd
 }
 
+func queueCompleteActionCmd() *cobra.Command {
+	actions := map[string]string{
+		"none":             "",
+		"":                 "",
+		"shutdown":         "shutdown_pc",
+		"shutdown_pc":      "shutdown_pc",
+		"shutdown-program": "shutdown_program",
+		"shutdown_program": "shutdown_program",
+		"hibernate":        "hibernate_pc",
+		"hibernate_pc":     "hibernate_pc",
+		"standby":          "standby_pc",
+		"standby_pc":       "standby_pc",
+	}
+
+	cmd := &cobra.Command{
+		Use:   "complete-action <action>",
+		Short: jsonShort("Set the queue completion action"),
+		Long:  appendJSONLong("Configure what SABnzbd should do when the queue completes (e.g. shutdown or standby)."),
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			input := strings.ToLower(strings.TrimSpace(args[0]))
+			action, ok := actions[input]
+			if !ok {
+				return fmt.Errorf("unknown action %q (use shutdown|shutdown-program|hibernate|standby|none)", input)
+			}
+
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.QueueSetCompleteAction(ctx, action); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"action": action})
+			}
+			if action == "" {
+				return app.Printer.Print("Cleared completion action")
+			}
+			return app.Printer.Print(fmt.Sprintf("Set completion action to %s", action))
+		},
+	}
+	return cmd
+}
+
 func queueItemCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "item",
-		Short: "Operate on individual queue items",
+		Short: jsonShort("Operate on individual queue items"),
+		Long:  appendJSONLong("Inspect or modify specific SABnzbd queue entries."),
 	}
 
 	cmd.AddCommand(queueItemShowCmd())
@@ -304,6 +409,8 @@ func queueItemCmd() *cobra.Command {
 	cmd.AddCommand(queueItemPriorityCmd())
 	cmd.AddCommand(queueItemMoveCmd())
 	cmd.AddCommand(queueItemSetCmd())
+	cmd.AddCommand(queueItemOptsCmd())
+	cmd.AddCommand(queueItemFilesCmd())
 
 	return cmd
 }
@@ -311,7 +418,8 @@ func queueItemCmd() *cobra.Command {
 func queueItemShowCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "show <nzo-id>",
-		Short: "Show detailed information for an item",
+		Short: jsonShort("Show detailed information for an item"),
+		Long:  appendJSONLong("Displays full queue slot metadata, including stage logs."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
@@ -348,7 +456,8 @@ func queueItemShowCmd() *cobra.Command {
 func queueItemPauseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "pause <nzo-id>",
-		Short: "Pause an item",
+		Short: jsonShort("Pause an item"),
+		Long:  appendJSONLong("Pauses a specific queue item in SABnzbd."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
@@ -366,7 +475,8 @@ func queueItemPauseCmd() *cobra.Command {
 func queueItemResumeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resume <nzo-id>",
-		Short: "Resume an item",
+		Short: jsonShort("Resume an item"),
+		Long:  appendJSONLong("Resumes a paused queue item."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
@@ -385,7 +495,8 @@ func queueItemDeleteCmd() *cobra.Command {
 	var deleteData bool
 	cmd := &cobra.Command{
 		Use:   "delete <nzo-id>",
-		Short: "Delete an item",
+		Short: jsonShort("Delete an item"),
+		Long:  appendJSONLong("Deletes a queue item. Use --with-data to also remove downloaded files when supported."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
@@ -404,7 +515,8 @@ func queueItemDeleteCmd() *cobra.Command {
 func queueItemPriorityCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "priority <nzo-id> <value>",
-		Short: "Change item priority",
+		Short: jsonShort("Change item priority"),
+		Long:  appendJSONLong("Sets the SABnzbd priority for an item (-1..2)."),
 		Args:  cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
@@ -430,7 +542,8 @@ func queueItemPriorityCmd() *cobra.Command {
 func queueItemMoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "move <nzo-id> <top|up|down|bottom|to> [position]",
-		Short: "Reorder queue items",
+		Short: jsonShort("Reorder queue items"),
+		Long:  appendJSONLong("Moves a queue item relative to others or to an absolute position."),
 		Args: func(cmd *cobra.Command, args []string) error {
 			if len(args) < 2 {
 				return errors.New("requires nzo-id and action")
@@ -483,7 +596,8 @@ func queueItemSetCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "set <nzo-id>",
-		Short: "Update item metadata",
+		Short: jsonShort("Update item metadata"),
+		Long:  appendJSONLong("Adjust queue item category, script, display name, or password."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			id := args[0]
@@ -553,11 +667,205 @@ func queueItemSetCmd() *cobra.Command {
 	return cmd
 }
 
+func queueItemOptsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "opts <pp-level> <nzo-id> [nzo-id...]",
+		Short: jsonShort("Update the post-processing level for specific items"),
+		Long:  appendJSONLong("Sets the post-processing level for one or more queue items."),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) < 2 {
+				return errors.New("provide pp-level and at least one nzo-id")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			pp, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid pp-level: %w", err)
+			}
+			ids := args[1:]
+
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.QueueChangeOptions(ctx, ids, pp); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"pp_level": pp, "nzo_ids": ids})
+			}
+			return app.Printer.Print(fmt.Sprintf("Updated post-processing level for %s", strings.Join(ids, ",")))
+		},
+	}
+	return cmd
+}
+
+func queueItemFilesCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "files <nzo-id>",
+		Short: jsonShort("List files for an item"),
+		Long:  appendJSONLong("Lists NZF files belonging to a queue item."),
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			id := args[0]
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			files, err := app.Client.GetFiles(ctx, id)
+			if err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{
+					"nzo_id": id,
+					"files":  files,
+					"count":  len(files),
+				})
+			}
+
+			if len(files) == 0 {
+				return app.Printer.Print(fmt.Sprintf("No files for %s", id))
+			}
+
+			headers := []string{"NZF ID", "Filename", "Status", "MB", "MB Left", "Age"}
+			rows := make([][]string, 0, len(files))
+			for _, file := range files {
+				rows = append(rows, []string{
+					file.NZFID,
+					file.Filename,
+					file.Status,
+					file.MB,
+					file.MBLeft,
+					file.Age,
+				})
+			}
+			if err := app.Printer.Table(headers, rows); err != nil {
+				return err
+			}
+			return app.Printer.Print(fmt.Sprintf("%d files", len(files)))
+		},
+	}
+	cmd.AddCommand(queueItemFilesDeleteCmd())
+	cmd.AddCommand(queueItemFilesMoveCmd())
+	return cmd
+}
+
+func queueItemFilesDeleteCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "delete <nzo-id> <nzf-id>",
+		Short: jsonShort("Delete a specific file from an item"),
+		Long:  appendJSONLong("Deletes a single NZF file from a queue item."),
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nzoID := args[0]
+			nzfID := args[1]
+
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.QueueDeleteFile(ctx, nzoID, nzfID); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{
+					"nzo_id":  nzoID,
+					"nzf_id":  nzfID,
+					"deleted": true,
+				})
+			}
+			return app.Printer.Print(fmt.Sprintf("Deleted %s from %s", nzfID, nzoID))
+		},
+	}
+	return cmd
+}
+
+func queueItemFilesMoveCmd() *cobra.Command {
+	var action string
+	var ids []string
+	var size int
+
+	cmd := &cobra.Command{
+		Use:   "move <nzo-id>",
+		Short: jsonShort("Move files within an item's NZF list"),
+		Long:  appendJSONLong("Bulk reorder NZF files within a queue item."),
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			nzoID := args[0]
+			actionKey := strings.ToLower(strings.TrimSpace(action))
+			if actionKey == "" {
+				return errors.New("provide --action top|bottom|up|down")
+			}
+			if len(ids) == 0 {
+				return errors.New("provide at least one NZF id via --id")
+			}
+
+			var sizePtr *int
+			if actionKey == "up" || actionKey == "down" {
+				if size <= 0 {
+					return errors.New("--size must be specified and greater than zero for up/down moves")
+				}
+				sizePtr = &size
+			}
+
+			validActions := map[string]string{"top": "top", "bottom": "bottom", "up": "up", "down": "down"}
+			actionValue, ok := validActions[actionKey]
+			if !ok {
+				return fmt.Errorf("unsupported action %q", actionKey)
+			}
+
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.QueueMoveFiles(ctx, actionValue, nzoID, ids, sizePtr); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{
+					"nzo_id":  nzoID,
+					"action":  actionValue,
+					"nzf_ids": ids,
+					"size":    size,
+				})
+			}
+			return app.Printer.Print(fmt.Sprintf("Moved %s for %s", strings.Join(ids, ","), nzoID))
+		},
+	}
+
+	cmd.Flags().StringVar(&action, "action", "", "Move direction (top, bottom, up, down)")
+	cmd.Flags().StringSliceVar(&ids, "id", nil, "NZF ids to move (repeat for multiple)")
+	cmd.Flags().IntVar(&size, "size", 0, "Number of positions to move when using up/down")
+	return cmd
+}
+
 func queueSortCmd() *cobra.Command {
 	var desc bool
 	cmd := &cobra.Command{
 		Use:   "sort <name|age|size|eta>",
-		Short: "Sort the queue",
+		Short: jsonShort("Sort the queue"),
+		Long:  appendJSONLong("Sorts SABnzbd's queue by the requested column."),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			criteria := args[0]

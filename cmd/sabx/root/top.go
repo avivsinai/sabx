@@ -12,7 +12,7 @@ import (
 func topCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "top",
-		Short: "Interactive dashboard for SABnzbd queues",
+		Short: jsonShort("Interactive dashboard for SABnzbd queues"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {

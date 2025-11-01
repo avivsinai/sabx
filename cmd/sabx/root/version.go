@@ -18,7 +18,7 @@ var (
 func versionCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "version",
-		Short: "Print sabx version information",
+		Short: jsonShort("Print sabx version information"),
 		Annotations: map[string]string{
 			"skipPersistent": "true",
 		},

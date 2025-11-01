@@ -11,7 +11,7 @@ import (
 func extensionsCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "extension",
-		Short: "Manage sabx extensions (sabx-<name>)",
+		Short: jsonShort("Manage sabx extensions (sabx-<name>)"),
 	}
 
 	cmd.AddCommand(extensionListCmd())
@@ -23,7 +23,7 @@ func extensionsCmd() *cobra.Command {
 func extensionListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List installed extensions",
+		Short: jsonShort("List installed extensions"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			exts, err := extensions.List()
 			if err != nil {
@@ -63,7 +63,7 @@ func extensionInstallCmd() *cobra.Command {
 	var overwrite bool
 	cmd := &cobra.Command{
 		Use:   "install <source>",
-		Short: "Install an extension from GitHub (owner/repo) or local path",
+		Short: jsonShort("Install an extension from GitHub (owner/repo) or local path"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ext, err := extensions.Install(args[0], overwrite)
@@ -81,7 +81,7 @@ func extensionInstallCmd() *cobra.Command {
 func extensionRemoveCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "remove <name>",
-		Short: "Remove an installed extension",
+		Short: jsonShort("Remove an installed extension"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := extensions.Remove(args[0]); err != nil {

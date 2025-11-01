@@ -61,13 +61,12 @@ func NewClient(baseURL, apiKey string, opts ...Option) (*Client, error) {
 	return client, nil
 }
 
-// call performs a request and decodes JSON into dest if provided.
-func (c *Client) call(ctx context.Context, mode string, params url.Values, dest any) error {
+// do performs a request and returns the raw HTTP response.
+func (c *Client) do(ctx context.Context, mode string, params url.Values) (*http.Response, error) {
 	if params == nil {
 		params = url.Values{}
 	}
 	params.Set("mode", mode)
-	params.Set("output", "json")
 	params.Set("apikey", c.apiKey)
 
 	endpoint := c.baseURL + "/api"
@@ -75,20 +74,37 @@ func (c *Client) call(ctx context.Context, mode string, params url.Values, dest 
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode >= 400 {
+		defer resp.Body.Close()
+		return nil, fmt.Errorf("sabnzbd API error: %s", resp.Status)
+	}
+
+	return resp, nil
+}
+
+// call performs a request and decodes JSON into dest if provided.
+func (c *Client) call(ctx context.Context, mode string, params url.Values, dest any) error {
+	if params == nil {
+		params = url.Values{}
+	}
+	params.Set("output", "json")
+
+	resp, err := c.do(ctx, mode, params)
 	if err != nil {
 		return err
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("sabnzbd API error: %s", resp.Status)
-	}
-
 	if dest == nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil
 	}
 
@@ -270,6 +286,36 @@ func (c *Client) AddFile(ctx context.Context, path string, opts AddOptions) (*Ad
 	return &addResp, nil
 }
 
+// AddLocalFile instructs SABnzbd to enqueue an NZB located on the server filesystem.
+func (c *Client) AddLocalFile(ctx context.Context, remotePath string, opts AddOptions) (*AddResponse, error) {
+	if strings.TrimSpace(remotePath) == "" {
+		return nil, errors.New("remote path required")
+	}
+	params := url.Values{}
+	params.Set("name", remotePath)
+	if opts.Category != "" {
+		params.Set("cat", opts.Category)
+	}
+	if opts.Priority != nil {
+		params.Set("priority", fmt.Sprintf("%d", *opts.Priority))
+	}
+	if opts.Password != "" {
+		params.Set("password", opts.Password)
+	}
+	if opts.Script != "" {
+		params.Set("script", opts.Script)
+	}
+	if opts.Name != "" {
+		params.Set("nzbname", opts.Name)
+	}
+
+	var resp AddResponse
+	if err := c.call(ctx, "addlocalfile", params, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // QueuePause pauses an item or the entire queue if id empty.
 func (c *Client) QueuePause(ctx context.Context, id string) error {
 	if id == "" {
@@ -425,6 +471,53 @@ func (c *Client) HistoryRetryAll(ctx context.Context) error {
 	return c.call(ctx, "retry_all", nil, nil)
 }
 
+// HistoryMarkCompleted marks history entries as completed and removes incomplete data.
+func (c *Client) HistoryMarkCompleted(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return errors.New("at least one history id required")
+	}
+	params := url.Values{}
+	params.Set("name", "mark_as_completed")
+	params.Set("value", strings.Join(ids, ","))
+	return c.call(ctx, "history", params, nil)
+}
+
+// StatusDeleteOrphan deletes the specified orphaned job directory.
+func (c *Client) StatusDeleteOrphan(ctx context.Context, path string) error {
+	if strings.TrimSpace(path) == "" {
+		return errors.New("orphan path required")
+	}
+	params := url.Values{}
+	params.Set("name", "delete_orphan")
+	params.Set("value", path)
+	return c.call(ctx, "status", params, nil)
+}
+
+// StatusDeleteAllOrphans removes all orphaned job directories.
+func (c *Client) StatusDeleteAllOrphans(ctx context.Context) error {
+	params := url.Values{}
+	params.Set("name", "delete_all_orphan")
+	return c.call(ctx, "status", params, nil)
+}
+
+// StatusAddOrphan re-adds an orphaned job back into the queue.
+func (c *Client) StatusAddOrphan(ctx context.Context, path string) error {
+	if strings.TrimSpace(path) == "" {
+		return errors.New("orphan path required")
+	}
+	params := url.Values{}
+	params.Set("name", "add_orphan")
+	params.Set("value", path)
+	return c.call(ctx, "status", params, nil)
+}
+
+// StatusAddAllOrphans re-adds all orphaned jobs back into the queue.
+func (c *Client) StatusAddAllOrphans(ctx context.Context) error {
+	params := url.Values{}
+	params.Set("name", "add_all_orphan")
+	return c.call(ctx, "status", params, nil)
+}
+
 // ConfigGet retrieves configuration for a given section (and optional key).
 func (c *Client) ConfigGet(ctx context.Context, section, key string) (map[string]any, error) {
 	params := url.Values{}
@@ -460,6 +553,103 @@ func (c *Client) ConfigDelete(ctx context.Context, section, name string) error {
 	params.Set("section", section)
 	params.Set("keyword", name)
 	return c.call(ctx, "del_config", params, nil)
+}
+
+// ConfigSetPause schedules SABnzbd to resume after the specified minutes.
+func (c *Client) ConfigSetPause(ctx context.Context, minutes int) error {
+	if minutes < 0 {
+		return errors.New("minutes must be >= 0")
+	}
+	params := url.Values{}
+	params.Set("name", "set_pause")
+	params.Set("value", fmt.Sprintf("%d", minutes))
+	return c.call(ctx, "config", params, nil)
+}
+
+type apiKeyEnvelope struct {
+	APIKey string `json:"apikey"`
+}
+
+// ConfigRotateAPIKey regenerates the main API key.
+func (c *Client) ConfigRotateAPIKey(ctx context.Context) (string, error) {
+	params := url.Values{}
+	params.Set("name", "set_apikey")
+
+	var env apiKeyEnvelope
+	if err := c.call(ctx, "config", params, &env); err != nil {
+		return "", err
+	}
+	return env.APIKey, nil
+}
+
+type nzbKeyEnvelope struct {
+	NZBKey string `json:"nzbkey"`
+}
+
+// ConfigRotateNZBKey regenerates the NZB key.
+func (c *Client) ConfigRotateNZBKey(ctx context.Context) (string, error) {
+	params := url.Values{}
+	params.Set("name", "set_nzbkey")
+
+	var env nzbKeyEnvelope
+	if err := c.call(ctx, "config", params, &env); err != nil {
+		return "", err
+	}
+	return env.NZBKey, nil
+}
+
+type boolEnvelope struct {
+	Value Boolish `json:"value"`
+}
+
+// ConfigRegenerateCertificates recreates HTTPS certificates when using defaults.
+func (c *Client) ConfigRegenerateCertificates(ctx context.Context) (bool, error) {
+	params := url.Values{}
+	params.Set("name", "regenerate_certs")
+
+	var env boolEnvelope
+	if err := c.call(ctx, "config", params, &env); err != nil {
+		return false, err
+	}
+	return bool(env.Value), nil
+}
+
+type backupEnvelope struct {
+	Value struct {
+		Result  bool   `json:"result"`
+		Message string `json:"message"`
+	} `json:"value"`
+}
+
+// ConfigCreateBackup creates a configuration backup and returns its path.
+func (c *Client) ConfigCreateBackup(ctx context.Context) (bool, string, error) {
+	params := url.Values{}
+	params.Set("name", "create_backup")
+
+	var env backupEnvelope
+	if err := c.call(ctx, "config", params, &env); err != nil {
+		return false, "", err
+	}
+	return env.Value.Result, env.Value.Message, nil
+}
+
+// ConfigPurgeLogFiles deletes SABnzbd's historical log files.
+func (c *Client) ConfigPurgeLogFiles(ctx context.Context) error {
+	params := url.Values{}
+	params.Set("name", "purge_log_files")
+	return c.call(ctx, "config", params, nil)
+}
+
+// ConfigSetDefault resets misc configuration keys to defaults.
+func (c *Client) ConfigSetDefault(ctx context.Context, keywords []string) error {
+	if len(keywords) == 0 {
+		return errors.New("provide at least one keyword")
+	}
+	params := url.Values{}
+	for _, key := range keywords {
+		params.Add("keyword", key)
+	}
+	return c.call(ctx, "set_config_default", params, nil)
 }
 
 // ServerControl triggers restart/shutdown.
@@ -508,6 +698,163 @@ type StatusResponse struct {
 // VersionResponse wraps version details.
 type VersionResponse struct {
 	Version string `json:"version"`
+}
+
+type translateEnvelope struct {
+	Value string `json:"value"`
+}
+
+// Translate resolves SABnzbd translation strings for the active locale.
+func (c *Client) Translate(ctx context.Context, key string) (string, error) {
+	params := url.Values{}
+	params.Set("value", key)
+
+	var env translateEnvelope
+	if err := c.call(ctx, "translate", params, &env); err != nil {
+		return "", err
+	}
+	return env.Value, nil
+}
+
+// BrowseOptions configures parameters for SABnzbd's filesystem browser.
+type BrowseOptions struct {
+	Compact           bool
+	ShowFiles         bool
+	ShowHiddenFolders bool
+}
+
+// BrowseEntry models an entry returned by the browse API.
+type BrowseEntry struct {
+	Name        string `json:"name,omitempty"`
+	Path        string `json:"path,omitempty"`
+	Dir         bool   `json:"dir,omitempty"`
+	CurrentPath string `json:"current_path,omitempty"`
+}
+
+type browseEnvelope struct {
+	Paths json.RawMessage `json:"paths"`
+}
+
+// FullStatusOptions configures the fullstatus API call.
+type FullStatusOptions struct {
+	CalculatePerformance bool
+	SkipDashboard        bool
+}
+
+type fullStatusEnvelope struct {
+	Status map[string]any `json:"status"`
+}
+
+// FullStatus returns the comprehensive SABnzbd status payload.
+func (c *Client) FullStatus(ctx context.Context, opts FullStatusOptions) (map[string]any, error) {
+	params := url.Values{}
+	if opts.CalculatePerformance {
+		params.Set("calculate_performance", "1")
+	}
+	if opts.SkipDashboard {
+		params.Set("skip_dashboard", "1")
+	}
+
+	var env fullStatusEnvelope
+	if err := c.call(ctx, "fullstatus", params, &env); err != nil {
+		return nil, err
+	}
+	return env.Status, nil
+}
+
+// Browse enumerates directories/files on the SABnzbd host.
+func (c *Client) Browse(ctx context.Context, path string, opts BrowseOptions) ([]BrowseEntry, error) {
+	params := url.Values{}
+	if path != "" {
+		params.Set("name", path)
+	}
+	if opts.Compact {
+		params.Set("compact", "1")
+	}
+	if opts.ShowFiles {
+		params.Set("show_files", "1")
+	}
+	if opts.ShowHiddenFolders {
+		params.Set("show_hidden_folders", "1")
+	}
+
+	var env browseEnvelope
+	if err := c.call(ctx, "browse", params, &env); err != nil {
+		return nil, err
+	}
+
+	entries := []BrowseEntry{}
+	if len(env.Paths) == 0 {
+		return entries, nil
+	}
+
+	trimmed := strings.TrimSpace(string(env.Paths))
+	if trimmed == "" {
+		return entries, nil
+	}
+
+	useStruct := false
+	if strings.HasPrefix(trimmed, "[") {
+		for i := 1; i < len(trimmed); i++ {
+			ch := trimmed[i]
+			if ch == '{' {
+				useStruct = true
+				break
+			}
+			if ch == '[' || ch == ' ' || ch == '\n' || ch == '\t' || ch == '\r' {
+				continue
+			}
+			break
+		}
+	}
+
+	if useStruct {
+		if err := json.Unmarshal(env.Paths, &entries); err == nil {
+			return entries, nil
+		}
+	}
+
+	var compact []string
+	if err := json.Unmarshal(env.Paths, &compact); err != nil {
+		return nil, err
+	}
+
+	for _, p := range compact {
+		entries = append(entries, BrowseEntry{
+			Name: p,
+			Path: p,
+		})
+	}
+	return entries, nil
+}
+
+// ServerStatsResponse captures aggregate usage metrics.
+type ServerStatsResponse struct {
+	Total   float64                       `json:"total"`
+	Month   float64                       `json:"month"`
+	Week    float64                       `json:"week"`
+	Day     float64                       `json:"day"`
+	Servers map[string]ServerUsageMetrics `json:"servers"`
+}
+
+// ServerUsageMetrics represents per-server throughput statistics.
+type ServerUsageMetrics struct {
+	Total           float64            `json:"total"`
+	Month           float64            `json:"month"`
+	Week            float64            `json:"week"`
+	Day             float64            `json:"day"`
+	Daily           map[string]float64 `json:"daily"`
+	ArticlesTried   float64            `json:"articles_tried"`
+	ArticlesSuccess float64            `json:"articles_success"`
+}
+
+// ServerStats fetches bandwidth utilisation statistics.
+func (c *Client) ServerStats(ctx context.Context) (*ServerStatsResponse, error) {
+	var stats ServerStatsResponse
+	if err := c.call(ctx, "server_stats", nil, &stats); err != nil {
+		return nil, err
+	}
+	return &stats, nil
 }
 
 // RSSNow triggers RSS fetch.
@@ -587,4 +934,400 @@ func (b *Boolish) UnmarshalJSON(data []byte) error {
 	}
 	*b = Boolish(parsed)
 	return nil
+}
+
+// Warning represents a SABnzbd warning entry.
+type Warning struct {
+	Type   string `json:"type"`
+	Text   string `json:"text"`
+	Time   int64  `json:"time"`
+	Origin string `json:"origin"`
+}
+
+type warningsEnvelope struct {
+	Warnings []Warning `json:"warnings"`
+}
+
+type statusEnvelope struct {
+	Status Boolish `json:"status"`
+	Error  string  `json:"error,omitempty"`
+}
+
+// Warnings retrieves current warnings.
+func (c *Client) Warnings(ctx context.Context) ([]Warning, error) {
+	var resp warningsEnvelope
+	if err := c.call(ctx, "warnings", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Warnings, nil
+}
+
+// WarningsClear clears stored warnings.
+func (c *Client) WarningsClear(ctx context.Context) error {
+	params := url.Values{}
+	params.Set("name", "clear")
+
+	var resp statusEnvelope
+	if err := c.call(ctx, "warnings", params, &resp); err != nil {
+		return err
+	}
+	if !bool(resp.Status) {
+		if resp.Error != "" {
+			return fmt.Errorf("failed to clear warnings: %s", resp.Error)
+		}
+		return errors.New("failed to clear warnings")
+	}
+	return nil
+}
+
+// ShowLog returns the redacted SABnzbd log bundle.
+func (c *Client) ShowLog(ctx context.Context) (string, error) {
+	resp, err := c.do(ctx, "showlog", nil)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	data, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+type scriptsEnvelope struct {
+	Scripts []string `json:"scripts"`
+}
+
+// GetScripts returns available post-processing scripts.
+func (c *Client) GetScripts(ctx context.Context) ([]string, error) {
+	var resp scriptsEnvelope
+	if err := c.call(ctx, "get_scripts", nil, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Scripts, nil
+}
+
+// QueueFile models an individual NZF file for a queue item.
+type QueueFile struct {
+	Filename string `json:"filename"`
+	MBLeft   string `json:"mbleft"`
+	MB       string `json:"mb"`
+	Bytes    string `json:"bytes"`
+	Age      string `json:"age"`
+	NZFID    string `json:"nzf_id"`
+	Status   string `json:"status"`
+	Set      string `json:"set,omitempty"`
+}
+
+type filesEnvelope struct {
+	Files []QueueFile `json:"files"`
+}
+
+// GetFiles lists the files belonging to a queue item.
+func (c *Client) GetFiles(ctx context.Context, nzoID string) ([]QueueFile, error) {
+	if strings.TrimSpace(nzoID) == "" {
+		return nil, errors.New("nzo id required")
+	}
+	params := url.Values{}
+	params.Set("value", nzoID)
+
+	var resp filesEnvelope
+	if err := c.call(ctx, "get_files", params, &resp); err != nil {
+		return nil, err
+	}
+	return resp.Files, nil
+}
+
+// QueueDeleteFile removes an NZF entry from a queue item.
+func (c *Client) QueueDeleteFile(ctx context.Context, nzoID, nzfID string) error {
+	if strings.TrimSpace(nzoID) == "" || strings.TrimSpace(nzfID) == "" {
+		return errors.New("nzo id and nzf id required")
+	}
+	params := url.Values{}
+	params.Set("value", nzoID)
+	params.Set("value2", nzfID)
+	return c.QueueAction(ctx, "delete_nzf", params)
+}
+
+// QueueMoveFiles reorders NZF files within a queue item.
+func (c *Client) QueueMoveFiles(ctx context.Context, action, nzoID string, nzfIDs []string, size *int) error {
+	if strings.TrimSpace(action) == "" {
+		return errors.New("action required")
+	}
+	if strings.TrimSpace(nzoID) == "" {
+		return errors.New("nzo id required")
+	}
+	if len(nzfIDs) == 0 {
+		return errors.New("at least one nzf id required")
+	}
+	params := url.Values{}
+	params.Set("name", action)
+	params.Set("value", nzoID)
+	params.Set("nzf_ids", strings.Join(nzfIDs, ","))
+	if size != nil {
+		if *size <= 0 {
+			return errors.New("size must be positive")
+		}
+		params.Set("size", fmt.Sprintf("%d", *size))
+	}
+
+	var resp statusEnvelope
+	if err := c.call(ctx, "move_nzf_bulk", params, &resp); err != nil {
+		return err
+	}
+	if !bool(resp.Status) {
+		return errors.New("move operation rejected by SABnzbd")
+	}
+	return nil
+}
+
+// QueueSetCompleteAction configures the completion action executed when the queue empties.
+func (c *Client) QueueSetCompleteAction(ctx context.Context, action string) error {
+	params := url.Values{}
+	if action != "" {
+		params.Set("value", action)
+	}
+	return c.QueueAction(ctx, "change_complete_action", params)
+}
+
+// QueueChangeOptions updates the post-processing level for specific queue items.
+func (c *Client) QueueChangeOptions(ctx context.Context, nzoIDs []string, ppLevel int) error {
+	if len(nzoIDs) == 0 {
+		return errors.New("at least one nzo id required")
+	}
+	if ppLevel < 0 {
+		return errors.New("pp level must be non-negative")
+	}
+	params := url.Values{}
+	params.Set("value", strings.Join(nzoIDs, ","))
+	params.Set("value2", fmt.Sprintf("%d", ppLevel))
+
+	var resp statusEnvelope
+	if err := c.call(ctx, "change_opts", params, &resp); err != nil {
+		return err
+	}
+	if !bool(resp.Status) {
+		return errors.New("failed to update post-processing options")
+	}
+	return nil
+}
+
+// ServerConfig describes a configured news server.
+type ServerConfig struct {
+	Name         string  `json:"name"`
+	DisplayName  string  `json:"displayname"`
+	Host         string  `json:"host"`
+	Port         int     `json:"port"`
+	Timeout      int     `json:"timeout"`
+	Username     string  `json:"username"`
+	Password     string  `json:"password"`
+	Connections  int     `json:"connections"`
+	SSL          bool    `json:"ssl"`
+	SSLVerify    int     `json:"ssl_verify"`
+	SSLCiphers   string  `json:"ssl_ciphers"`
+	Enable       bool    `json:"enable"`
+	Required     bool    `json:"required"`
+	Optional     bool    `json:"optional"`
+	Retention    int     `json:"retention"`
+	ExpireDate   string  `json:"expire_date"`
+	Quota        string  `json:"quota"`
+	UsageAtStart float64 `json:"usage_at_start"`
+	Priority     int     `json:"priority"`
+	Notes        string  `json:"notes"`
+}
+
+type serverConfigsEnvelope struct {
+	Servers []ServerConfig `json:"servers"`
+}
+
+// ServerConfigs returns the configured news servers.
+func (c *Client) ServerConfigs(ctx context.Context) ([]ServerConfig, error) {
+	params := url.Values{}
+	params.Set("section", "servers")
+
+	var env serverConfigsEnvelope
+	if err := c.call(ctx, "get_config", params, &env); err != nil {
+		return nil, err
+	}
+	return env.Servers, nil
+}
+
+// Disconnect forces a temporary disconnect from all servers.
+func (c *Client) Disconnect(ctx context.Context) error {
+	return c.call(ctx, "disconnect", nil, nil)
+}
+
+// UnblockServer clears a temporarily blocked server.
+func (c *Client) UnblockServer(ctx context.Context, name string) error {
+	if strings.TrimSpace(name) == "" {
+		return errors.New("server name required")
+	}
+	params := url.Values{}
+	params.Set("name", "unblock_server")
+	params.Set("value", name)
+	return c.call(ctx, "status", params, nil)
+}
+
+// PausePostProcessing pauses post-processing globally.
+func (c *Client) PausePostProcessing(ctx context.Context) error {
+	return c.call(ctx, "pause_pp", nil, nil)
+}
+
+// ResumePostProcessing resumes post-processing globally.
+func (c *Client) ResumePostProcessing(ctx context.Context) error {
+	return c.call(ctx, "resume_pp", nil, nil)
+}
+
+// CancelPostProcessing cancels post-processing for the provided NZO IDs.
+func (c *Client) CancelPostProcessing(ctx context.Context, nzoIDs []string) error {
+	if len(nzoIDs) == 0 {
+		return errors.New("at least one nzo id required")
+	}
+	params := url.Values{}
+	params.Set("value", strings.Join(nzoIDs, ","))
+	return c.call(ctx, "cancel_pp", params, nil)
+}
+
+// WatchedNow triggers an immediate watched-folder scan.
+func (c *Client) WatchedNow(ctx context.Context) error {
+	return c.call(ctx, "watched_now", nil, nil)
+}
+
+// ResetQuota clears SABnzbd's download quota tracking.
+func (c *Client) ResetQuota(ctx context.Context) error {
+	return c.call(ctx, "reset_quota", nil, nil)
+}
+
+type evalSortEnvelope struct {
+	Result string `json:"result"`
+}
+
+// EvalSort evaluates a sorting expression for a sample job.
+func (c *Client) EvalSort(ctx context.Context, expression string, opts EvalSortOptions) (string, error) {
+	params := url.Values{}
+	params.Set("sort_string", expression)
+	if opts.JobName != "" {
+		params.Set("job_name", opts.JobName)
+	}
+	if opts.MultipartLabel != "" {
+		params.Set("multipart_label", opts.MultipartLabel)
+	}
+
+	var env evalSortEnvelope
+	if err := c.call(ctx, "eval_sort", params, &env); err != nil {
+		return "", err
+	}
+	return env.Result, nil
+}
+
+// EvalSortOptions customises eval_sort API parameters.
+type EvalSortOptions struct {
+	JobName        string
+	MultipartLabel string
+}
+
+type gcStatsEnvelope struct {
+	Value []string `json:"value"`
+}
+
+// GCStats returns SABnzbd's internal garbage-collector statistics.
+func (c *Client) GCStats(ctx context.Context) ([]string, error) {
+	var env gcStatsEnvelope
+	if err := c.call(ctx, "gc_stats", nil, &env); err != nil {
+		return nil, err
+	}
+	return env.Value, nil
+}
+
+// RestartRepair triggers queue repair and application restart.
+func (c *Client) RestartRepair(ctx context.Context) error {
+	return c.call(ctx, "restart_repair", nil, nil)
+}
+
+type testNotificationEnvelope struct {
+	Status Boolish `json:"status"`
+	Error  string  `json:"error,omitempty"`
+}
+
+// TestNotificationResult captures the outcome of a notification test call.
+type TestNotificationResult struct {
+	Success bool
+	Message string
+}
+
+// TestNotification triggers SABnzbd's built-in notification testers (email, pushover, etc.).
+func (c *Client) TestNotification(ctx context.Context, mode string, params url.Values) (*TestNotificationResult, error) {
+	if params == nil {
+		params = url.Values{}
+	}
+	var env testNotificationEnvelope
+	if err := c.call(ctx, mode, params, &env); err != nil {
+		return nil, err
+	}
+	return &TestNotificationResult{Success: bool(env.Status), Message: env.Error}, nil
+}
+
+// ServerTestParams configures a server connectivity test.
+type ServerTestParams struct {
+	Server      string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	Connections int
+	Timeout     int
+	SSL         bool
+	SSLVerify   int
+	SSLCiphers  string
+}
+
+// ServerTestResult captures the outcome of a server connectivity test.
+type ServerTestResult struct {
+	Result  bool   `json:"result"`
+	Message string `json:"message"`
+}
+
+type serverTestEnvelope struct {
+	Value ServerTestResult `json:"value"`
+}
+
+// TestServer performs SABnzbd's built-in server connectivity test.
+func (c *Client) TestServer(ctx context.Context, params ServerTestParams) (*ServerTestResult, error) {
+	if strings.TrimSpace(params.Server) == "" {
+		return nil, errors.New("server identifier required")
+	}
+
+	req := url.Values{}
+	req.Set("name", "test_server")
+	req.Set("server", params.Server)
+	req.Set("host", params.Host)
+	if params.Port > 0 {
+		req.Set("port", fmt.Sprintf("%d", params.Port))
+	}
+	req.Set("username", params.Username)
+	req.Set("password", params.Password)
+	if params.Connections > 0 {
+		req.Set("connections", fmt.Sprintf("%d", params.Connections))
+	}
+	if params.Timeout > 0 {
+		req.Set("timeout", fmt.Sprintf("%d", params.Timeout))
+	}
+	if params.SSL {
+		req.Set("ssl", "1")
+	} else {
+		req.Set("ssl", "0")
+	}
+	if params.SSLVerify >= 0 {
+		req.Set("ssl_verify", fmt.Sprintf("%d", params.SSLVerify))
+	}
+	if params.SSLCiphers != "" {
+		req.Set("ssl_ciphers", params.SSLCiphers)
+	}
+
+	var env serverTestEnvelope
+	if err := c.call(ctx, "config", req, &env); err != nil {
+		return nil, err
+	}
+	return &env.Value, nil
 }

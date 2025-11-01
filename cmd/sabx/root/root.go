@@ -28,7 +28,7 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "sabx",
-	Short: "Full-fidelity SABnzbd CLI",
+	Short: jsonShort("Full-fidelity SABnzbd CLI"),
 	Long:  "sabx is a fast, scriptable CLI that mirrors the SABnzbd web UI and API.",
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.Load()
@@ -85,12 +85,22 @@ func init() {
 	rootCmd.AddCommand(loginCmd())
 	rootCmd.AddCommand(whoamiCmd())
 	rootCmd.AddCommand(statusCmd())
+	rootCmd.AddCommand(warningsCmd())
+	rootCmd.AddCommand(logsCmd())
 	rootCmd.AddCommand(queueCmd())
 	rootCmd.AddCommand(historyCmd())
 	rootCmd.AddCommand(configCmd())
+	rootCmd.AddCommand(scriptsCmd())
 	rootCmd.AddCommand(rssCmd())
 	rootCmd.AddCommand(categoriesCmd())
 	rootCmd.AddCommand(scheduleCmd())
+	rootCmd.AddCommand(postprocessCmd())
+	rootCmd.AddCommand(browseCmd())
+	rootCmd.AddCommand(watchedCmd())
+	rootCmd.AddCommand(quotaCmd())
+	rootCmd.AddCommand(notificationsCmd())
+	rootCmd.AddCommand(debugCmd())
+	rootCmd.AddCommand(translateCmd())
 	rootCmd.AddCommand(serverCmd())
 	rootCmd.AddCommand(speedCmd())
 	rootCmd.AddCommand(dumpCmd())

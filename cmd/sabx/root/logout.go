@@ -17,7 +17,7 @@ func logoutCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "logout",
-		Short: "Remove stored SABnzbd credentials",
+		Short: jsonShort("Remove stored SABnzbd credentials"),
 		Annotations: map[string]string{
 			"skipPersistent": "true",
 		},

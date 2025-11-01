@@ -15,7 +15,7 @@ import (
 func categoriesCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "categories",
-		Short: "Manage SABnzbd categories",
+		Short: jsonShort("Manage SABnzbd categories"),
 	}
 
 	cmd.AddCommand(categoriesListCmd())
@@ -28,7 +28,7 @@ func categoriesCmd() *cobra.Command {
 func categoriesListCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "list",
-		Short: "List categories",
+		Short: jsonShort("List categories"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -65,7 +65,7 @@ func categoriesAddCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "add <name>",
-		Short: "Add a new category",
+		Short: jsonShort("Add a new category"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
@@ -102,7 +102,7 @@ func categoriesSetCmd() *cobra.Command {
 	var entries []string
 	cmd := &cobra.Command{
 		Use:   "set <name>",
-		Short: "Update a category",
+		Short: jsonShort("Update a category"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(entries) == 0 {
@@ -139,7 +139,7 @@ func categoriesSetCmd() *cobra.Command {
 func categoriesDeleteCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "delete <name>",
-		Short: "Delete a category",
+		Short: jsonShort("Delete a category"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]

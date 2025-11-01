@@ -13,17 +13,20 @@ import (
 func speedCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "speed",
-		Short: "Inspect and control download speeds",
+		Short: jsonShort("Inspect and control download speeds"),
+		Long:  appendJSONLong("Read current download rate information and manage global speed limits."),
 	}
-	cmd.AddCommand(speedShowCmd())
+	cmd.AddCommand(speedStatusCmd())
 	cmd.AddCommand(speedLimitCmd())
 	return cmd
 }
 
-func speedShowCmd() *cobra.Command {
+func speedStatusCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "show",
-		Short: "Display current speed information",
+		Use:     "status",
+		Aliases: []string{"show"},
+		Short:   jsonShort("Display current speed information"),
+		Long:    appendJSONLong("Returns SABnzbd's reported download rate and limit state."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -63,7 +66,8 @@ func speedLimitCmd() *cobra.Command {
 	var remove bool
 	cmd := &cobra.Command{
 		Use:   "limit",
-		Short: "Set the global speed limit",
+		Short: jsonShort("Set the global speed limit"),
+		Long:  appendJSONLong("Configure SABnzbd's global speed limit or remove it entirely."),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if remove {
 				if cmd.Flags().Changed("rate") {

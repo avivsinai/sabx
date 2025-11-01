@@ -14,7 +14,7 @@ import (
 func dumpCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "dump",
-		Short: "Export SABnzbd configuration or runtime state",
+		Short: jsonShort("Export SABnzbd configuration or runtime state"),
 	}
 
 	cmd.AddCommand(dumpConfigCmd())
@@ -26,7 +26,7 @@ func dumpConfigCmd() *cobra.Command {
 	var sections []string
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Dump configuration sections (sanitised)",
+		Short: jsonShort("Dump configuration sections (sanitised)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
@@ -63,7 +63,7 @@ func dumpStateCmd() *cobra.Command {
 	var historyLimit int
 	cmd := &cobra.Command{
 		Use:   "state",
-		Short: "Dump current queue/status/history snapshot",
+		Short: jsonShort("Dump current queue/status/history snapshot"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {

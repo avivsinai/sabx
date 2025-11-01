@@ -9,7 +9,7 @@ import (
 func whoamiCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "whoami",
-		Short: "Show the connected SABnzbd instance",
+		Short: jsonShort("Show the connected SABnzbd instance"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -12,12 +13,19 @@ import (
 func configCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
-		Short: "Read and update SABnzbd configuration",
+		Short: jsonShort("Read and update SABnzbd configuration"),
 	}
 
 	cmd.AddCommand(configGetCmd())
 	cmd.AddCommand(configSetCmd())
 	cmd.AddCommand(configDeleteCmd())
+	cmd.AddCommand(configSetPauseCmd())
+	cmd.AddCommand(configRotateAPIKeyCmd())
+	cmd.AddCommand(configRotateNZBKeyCmd())
+	cmd.AddCommand(configRegenerateCertsCmd())
+	cmd.AddCommand(configCreateBackupCmd())
+	cmd.AddCommand(configPurgeLogsCmd())
+	cmd.AddCommand(configResetDefaultCmd())
 	return cmd
 }
 
@@ -25,7 +33,7 @@ func configGetCmd() *cobra.Command {
 	var key string
 	cmd := &cobra.Command{
 		Use:   "get <section>",
-		Short: "Fetch configuration values",
+		Short: jsonShort("Fetch configuration values"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			section := args[0]
@@ -54,7 +62,7 @@ func configSetCmd() *cobra.Command {
 	var entries []string
 	cmd := &cobra.Command{
 		Use:   "set <section>",
-		Short: "Set configuration values",
+		Short: jsonShort("Set configuration values"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(entries) == 0 {
@@ -104,7 +112,7 @@ func configDeleteCmd() *cobra.Command {
 	var key string
 	cmd := &cobra.Command{
 		Use:   "delete <section>",
-		Short: "Delete a configuration value",
+		Short: jsonShort("Delete a configuration value"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			section := args[0]
@@ -135,5 +143,199 @@ func configDeleteCmd() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&name, "name", "", "Named configuration entry to delete")
 	cmd.Flags().StringVar(&key, "key", "", "Keyword to delete (for un-named sections)")
+	return cmd
+}
+
+func configSetPauseCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "set-pause <minutes>",
+		Short: jsonShort("Schedule SABnzbd to resume after the given minutes"),
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			minutes, err := strconv.Atoi(args[0])
+			if err != nil {
+				return fmt.Errorf("invalid minutes: %w", err)
+			}
+			if minutes < 0 {
+				return errors.New("minutes must be >= 0")
+			}
+
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.ConfigSetPause(ctx, minutes); err != nil {
+				return err
+			}
+
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"minutes": minutes})
+			}
+			return app.Printer.Print(fmt.Sprintf("Queue will resume in %d minute(s)", minutes))
+		},
+	}
+	return cmd
+}
+
+func configRotateAPIKeyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rotate-api-key",
+		Short: jsonShort("Generate a new SABnzbd API key"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			key, err := app.Client.ConfigRotateAPIKey(ctx)
+			if err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"api_key": key})
+			}
+			return app.Printer.Print(fmt.Sprintf("New API key: %s", key))
+		},
+	}
+	return cmd
+}
+
+func configRotateNZBKeyCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "rotate-nzb-key",
+		Short: jsonShort("Generate a new SABnzbd NZB key"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			nzbKey, err := app.Client.ConfigRotateNZBKey(ctx)
+			if err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"nzb_key": nzbKey})
+			}
+			return app.Printer.Print(fmt.Sprintf("New NZB key: %s", nzbKey))
+		},
+	}
+	return cmd
+}
+
+func configRegenerateCertsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "regenerate-certs",
+		Short: jsonShort("Regenerate default HTTPS certificates"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			regenerated, err := app.Client.ConfigRegenerateCertificates(ctx)
+			if err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"regenerated": regenerated})
+			}
+			if regenerated {
+				return app.Printer.Print("Certificates regenerated; restart required")
+			}
+			return app.Printer.Print("Certificates unchanged (custom paths in use)")
+		},
+	}
+	return cmd
+}
+
+func configCreateBackupCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "backup",
+		Short: jsonShort("Create a SABnzbd configuration backup"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			success, path, err := app.Client.ConfigCreateBackup(ctx)
+			if err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"success": success, "path": path})
+			}
+			if success {
+				return app.Printer.Print(fmt.Sprintf("Backup saved to %s", path))
+			}
+			return app.Printer.Print("No backup created")
+		},
+	}
+	return cmd
+}
+
+func configPurgeLogsCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "purge-logs",
+		Short: jsonShort("Purge historical SABnzbd log files"),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.ConfigPurgeLogFiles(ctx); err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"purged": true})
+			}
+			return app.Printer.Print("Purged SABnzbd log files")
+		},
+	}
+	return cmd
+}
+
+func configResetDefaultCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "reset-default <keyword> [keyword...]",
+		Short: jsonShort("Reset misc configuration keys back to defaults"),
+		Args: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 0 {
+				return errors.New("provide one or more keywords")
+			}
+			return nil
+		},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			app, err := getApp(cmd)
+			if err != nil {
+				return err
+			}
+			ctx, cancel := timeoutContext(cmd.Context())
+			defer cancel()
+
+			if err := app.Client.ConfigSetDefault(ctx, args); err != nil {
+				return err
+			}
+			if app.Printer.JSON {
+				return app.Printer.Print(map[string]any{"reset": args})
+			}
+			return app.Printer.Print(fmt.Sprintf("Reset %s to defaults", strings.Join(args, ",")))
+		},
+	}
 	return cmd
 }

@@ -22,7 +22,7 @@ func loginCmd() *cobra.Command {
 
 	cmd := &cobra.Command{
 		Use:   "login",
-		Short: "Authenticate sabx with a SABnzbd instance",
+		Short: jsonShort("Authenticate sabx with a SABnzbd instance"),
 		Long:  "Stores SABnzbd connection details and API key securely in the system keychain.",
 		Annotations: map[string]string{
 			"skipPersistent": "true",

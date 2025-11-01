@@ -9,7 +9,7 @@ import (
 func doctorCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "doctor",
-		Short: "Diagnose connectivity issues",
+		Short: jsonShort("Diagnose connectivity issues"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			app, err := getApp(cmd)
 			if err != nil {
