@@ -176,9 +176,11 @@ func resolveConnection(cfg *config.Config) (profile, baseURL, apiKey string, err
 			}
 			profile = resolvedProfile
 			profileCfg = cfgProfile
-		} else if profile == "" {
+		} else if profile != "" {
+			// Explicit profile requested but not found
 			return "", "", "", cfgErr
 		}
+		// If profile is empty and we have flags/env vars, continue without profile
 	}
 
 	if baseURL == "" {
