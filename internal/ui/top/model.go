@@ -20,7 +20,8 @@ func Run(ctx context.Context, client *sabapi.Client) error {
 	done := make(chan error, 1)
 
 	go func() {
-		done <- p.Start()
+		_, err := p.Run()
+		done <- err
 	}()
 
 	select {
