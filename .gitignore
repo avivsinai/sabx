@@ -1,0 +1,14 @@
+# Build artifacts
+/bin/
+/dist/
+*.log
+
+# Go modules
+vendor/
+
+# macOS
+.DS_Store
+
+# Editor
+.idea/
+.vscode/
