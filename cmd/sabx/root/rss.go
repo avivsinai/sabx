@@ -211,25 +211,42 @@ type rssFeed struct {
 
 func parseRSSFeeds(m map[string]any) []rssFeed {
 	feeds := []rssFeed{}
-	raw := extractValueMap(m)
-	list, ok := raw["feeds"].([]any)
-	if !ok {
-		// Some SAB builds return map keyed by feed name.
-		if keyed, ok := raw["feeds"].(map[string]any); ok {
-			for name, payload := range keyed {
-				feeds = append(feeds, rssFeedFrom(name, payload))
-			}
-			return feeds
+
+	// SABnzbd returns RSS config as: {"config": {"rss": [...]}}
+	var raw map[string]any
+	if config, ok := m["config"].(map[string]any); ok {
+		raw = config
+	} else {
+		raw = extractValueMap(m)
+	}
+
+	// Try to find RSS feeds in various locations
+	var list []any
+
+	// Check raw["rss"] first (actual SABnzbd response)
+	if rssList, ok := raw["rss"].([]any); ok {
+		list = rssList
+	} else if feedsList, ok := raw["feeds"].([]any); ok {
+		// Fallback: raw["feeds"]
+		list = feedsList
+	} else if keyed, ok := raw["feeds"].(map[string]any); ok {
+		// Some SAB builds return map keyed by feed name
+		for name, payload := range keyed {
+			feeds = append(feeds, rssFeedFrom(name, payload))
 		}
-		// Fallback: iterate entire map
+		return feeds
+	} else {
+		// Last resort: iterate entire map
 		for name, payload := range raw {
-			if name == "feeds" {
+			if name == "feeds" || name == "rss" {
 				continue
 			}
 			feeds = append(feeds, rssFeedFrom(name, payload))
 		}
 		return feeds
 	}
+
+	// Parse the list of feeds
 	for _, item := range list {
 		feed := rssFeedFrom("", item)
 		feeds = append(feeds, feed)
@@ -251,13 +268,33 @@ func rssFeedFrom(defaultName string, payload any) rssFeed {
 			case "name":
 				feed.Name = strVal
 			case "uri", "url":
-				feed.URL = strVal
+				// URI can be a string or array of strings
+				switch uriVal := value.(type) {
+				case []any:
+					if len(uriVal) > 0 {
+						feed.URL = fmt.Sprintf("%v", uriVal[0])
+					}
+				case string:
+					feed.URL = uriVal
+				default:
+					feed.URL = strVal
+				}
 			case "cat", "category":
 				feed.Category = strVal
 			case "priority", "prio":
 				feed.Priority = strVal
-			case "enabled":
-				feed.Enabled = isTruthy(strVal)
+			case "enable", "enabled":
+				// Can be int (1/0) or string ("1"/"0"/"true"/"false")
+				switch enableVal := value.(type) {
+				case float64:
+					feed.Enabled = enableVal != 0
+				case int:
+					feed.Enabled = enableVal != 0
+				case bool:
+					feed.Enabled = enableVal
+				default:
+					feed.Enabled = isTruthy(strVal)
+				}
 			}
 		}
 	}
