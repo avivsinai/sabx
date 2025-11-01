@@ -134,10 +134,15 @@ The script builds `sabx`, runs a curated set of commands (`browse`, `notificatio
 go fmt ./...
 go test ./...
 
+# End-to-end smoke (requires Docker)
+go test ./test/e2e -run TestSmokeAgainstSABContainer -count=1
+
 # Run the CLI locally
 ./sabx status
 ```
-See [AGENTS.md](AGENTS.md) for deeper contributor guidance, including architecture notes and testing tips.
+See [AGENTS.md](AGENTS.md) for deeper contributor guidance, including architecture notes and testing tips. Release automation and tagging instructions live in [docs/RELEASING.md](docs/RELEASING.md).
+
+Set `SABX_E2E_DISABLE=1` to skip container-based smoke tests when Docker is unavailable.
 
 ## Extensions
 - Install from GitHub: `sabx extension install avivsinai/sabx-tv-tools`

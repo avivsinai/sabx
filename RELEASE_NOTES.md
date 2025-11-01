@@ -6,6 +6,7 @@ This release completes the SABnzbd API parity initiative: every published endpoi
 ## Highlights
 - ✅ **API coverage audit** – `go run ./tools/coverage` enumerates all `(mode, name)` combinations exercised by `sabx`, confirming 75/75 endpoint coverage and surfacing the responsible functions.
 - ✅ **Smoke harness** – `scripts/run-smoke.sh` (backed by `tools/smoke`) runs end-to-end checks against a live SABnzbd instance, capturing sanitized JSON fixtures for tricky endpoints (filesystem browse, watched_now, notification testers, eval_sort, orphan lifecycle).
+- ✅ **Containerized E2E** – `go test ./test/e2e` builds sabx, launches SABnzbd inside Testcontainers, and drives the smoke harness automatically (skippable via `SABX_E2E_DISABLE=1`).
 - ✅ **Integration tests** – `internal/sabapi` tests now assert response parsing for queue file moves, API/NZB key rotation, and notification testers—not just request shapes.
 - ✅ **CLI polish** – command verbs and help text are consistent: `logs list` (alias `show`), `speed status`, and every parity-era command advertises `--json` behaviour. Help strings mention error surfaces.
 - ✅ **Documentation** – README quickstart expanded with new examples (browse, watched, quota, notifications, eval-sort). Added an “API Parity Checklist” table and smoke-test guidance. `API_COVERAGE.md` references the new coverage tool and reflects queue purge/move semantics.

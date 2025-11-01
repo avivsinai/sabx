@@ -1,21 +1,52 @@
-project_name: sabx
+version: 2
+
 before:
   hooks:
     - go mod tidy
+
+project_name: sabx
+
 builds:
   - id: sabx
     main: ./cmd/sabx
     binary: sabx
-    goos: [linux, darwin, windows]
-    goarch: [amd64, arm64]
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
     ldflags:
       - -s -w
+      - -X github.com/sabx/sabx/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/sabx/sabx/internal/buildinfo.Commit={{ .Commit }}
+      - -X github.com/sabx/sabx/internal/buildinfo.Date={{ .Date }}
+    flags:
+      - -trimpath
+
 archives:
   - id: sabx-archive
     builds: [sabx]
     format: tar.gz
-    replacements:
-      darwin: macOS
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    format_overrides:
+      - goos: windows
+        format: zip
+    files:
+      - LICENSE
+      - README.md
+      - RELEASE_NOTES.md
 
 brews:
   - name: sabx
@@ -64,9 +95,47 @@ dockers:
       - "--platform=linux/amd64,linux/arm64"
 checksum:
   name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
+
+changelog:
+  sort: asc
+  use: github
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+      - '^chore:'
+      - '^ci:'
+      - Merge pull request
+      - Merge remote-tracking branch
+      - Merge branch
+  groups:
+    - title: "🚀 Features"
+      regexp: '^feat(\(.+\))?:'
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: '^fix(\(.+\))?:'
+      order: 1
+    - title: "📦 Dependencies"
+      regexp: '^deps(\(.+\))?:'
+      order: 2
+    - title: "🔧 Other Changes"
+      order: 999
+
 release:
   github:
     owner: sabx
     name: sabx
   draft: false
   prerelease: false
+  mode: replace
+  header: |
+    ## sabx {{ .Tag }} ({{ .Date }})
+
+    This release delivers the latest SABnzbd CLI parity updates and fixes.
+  footer: |
+    ---
+
+    **Full changelog**: https://github.com/sabx/sabx/compare/{{ .PreviousTag }}...{{ .Tag }}

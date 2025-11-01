@@ -3,16 +3,12 @@ package root
 import (
 	"fmt"
 	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/sabx/sabx/internal/buildinfo"
 	"github.com/sabx/sabx/internal/output"
-)
-
-var (
-	buildVersion = "dev"
-	buildCommit  = ""
-	buildDate    = ""
 )
 
 func versionCmd() *cobra.Command {
@@ -23,24 +19,7 @@ func versionCmd() *cobra.Command {
 			"skipPersistent": "true",
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			info := map[string]string{
-				"version": buildVersion,
-				"commit":  buildCommit,
-				"date":    buildDate,
-			}
-			if info["commit"] == "" || info["date"] == "" {
-				if bi, ok := debug.ReadBuildInfo(); ok && bi != nil {
-					info["version"] = bi.Main.Version
-					for _, setting := range bi.Settings {
-						switch setting.Key {
-						case "vcs.revision":
-							info["commit"] = setting.Value
-						case "vcs.time":
-							info["date"] = setting.Value
-						}
-					}
-				}
-			}
+			info := currentBuildInfo()
 
 			printer := output.New()
 			printer.JSON = jsonFlag
@@ -48,16 +27,59 @@ func versionCmd() *cobra.Command {
 			if printer.JSON {
 				return printer.Print(info)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "sabx %s", info["version"])
-			if info["commit"] != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), " (%s)", info["commit"])
-			}
-			if info["date"] != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), " built %s", info["date"])
-			}
-			fmt.Fprintln(cmd.OutOrStdout())
+			fmt.Fprintln(cmd.OutOrStdout(), humanVersion(info))
 			return nil
 		},
 	}
 	return cmd
+}
+
+func currentBuildInfo() map[string]string {
+	info := map[string]string{
+		"version": buildinfo.Version,
+		"commit":  buildinfo.Commit,
+		"date":    buildinfo.Date,
+	}
+	if info["commit"] == "" || info["date"] == "" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi != nil {
+			if info["version"] == "" || info["version"] == "dev" {
+				info["version"] = bi.Main.Version
+			}
+			for _, setting := range bi.Settings {
+				switch setting.Key {
+				case "vcs.revision":
+					if info["commit"] == "" {
+						info["commit"] = setting.Value
+					}
+				case "vcs.time":
+					if info["date"] == "" {
+						info["date"] = setting.Value
+					}
+				}
+			}
+		}
+	}
+	if info["version"] == "" {
+		info["version"] = "dev"
+	}
+	return info
+}
+
+func humanVersion(info map[string]string) string {
+	builder := strings.Builder{}
+	builder.WriteString("sabx ")
+	builder.WriteString(info["version"])
+	if commit := info["commit"]; commit != "" {
+		if len(commit) > 7 {
+			commit = commit[:7]
+		}
+		builder.WriteString(" (")
+		builder.WriteString(commit)
+		builder.WriteString(")")
+	}
+	if info["date"] != "" {
+		builder.WriteString(" built ")
+		builder.WriteString(info["date"])
+	}
+	return builder.String()
 }

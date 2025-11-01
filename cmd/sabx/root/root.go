@@ -72,6 +72,8 @@ func init() {
 	cobra.EnableCommandSorting = true
 	rootCmd.SilenceUsage = true
 	rootCmd.SilenceErrors = true
+	rootCmd.Version = humanVersion(currentBuildInfo())
+	rootCmd.SetVersionTemplate("{{printf \"%s\\n\" .Version}}")
 
 	envConfig.SetEnvPrefix("SABX")
 	envConfig.AutomaticEnv()
