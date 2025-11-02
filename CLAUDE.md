@@ -52,7 +52,7 @@ go run ./cmd/sabx --profile home status
 ### Command Structure (Cobra-based)
 - Entry point: `cmd/sabx/main.go` → `root.Execute()`
 - Root command: `cmd/sabx/root/root.go` with `PersistentPreRunE` hook that:
-  1. Loads config from `~/.config/sabx/config.yaml`
+  1. Loads config from `$SABX_CONFIG_DIR/config.yml` (defaults to `~/.config/sabx/config.yml`)
   2. Creates output `Printer` object
   3. Resolves connection details (baseURL, apiKey, profile)
   4. Creates SABnzbd API `Client`
@@ -76,7 +76,7 @@ go run ./cmd/sabx --profile home status
 - Default timeout: 15 seconds
 
 ### Configuration System (`internal/config`)
-- Storage: `~/.config/sabx/config.yaml` (mode 0o600)
+- Storage: `config.yml` under `$SABX_CONFIG_DIR` (defaults to platform-appropriate config dir). Directory enforced at `0o700`, writes are atomic (`CreateTemp` + rename).
 - Supports multiple profiles for different SABnzbd instances
 - Thread-safe with `sync.RWMutex`
 - Structure:
@@ -89,11 +89,11 @@ go run ./cmd/sabx --profile home status
   ```
 
 ### Authentication (`internal/auth`)
-- Uses `github.com/zalando/go-keyring` for secure API key storage
+- Uses `github.com/99designs/keyring` with a lightweight wrapper (`Store`) enabling native keychains and optional encrypted file fallback.
 - Service name: `"sabx"`
-- Keyring key format: `"profile_name:baseurl_sha1_hash"` (hash prevents profile name collisions)
-- Three operations: `SaveAPIKey()`, `LoadAPIKey()`, `DeleteAPIKey()`
-- Fallback: Keys can be stored insecurely in config file with `--insecure-store` flag
+- Keyring key format: `"profile/<name>/<sha256(baseURL)>` with human-readable labels for OS dialogs.
+- Helpers: `SaveAPIKey()`, `LoadAPIKey()`, `DeleteAPIKey()` accept optional store options (e.g., `auth.WithAllowFileFallback(true)`).
+- Fallbacks: enable encrypted file backend via `--allow-insecure-store` or plaintext config via `--store-in-config` (discouraged).
 
 ### Connection Resolution Priority (High to Low)
 1. Command-line flags (`--base-url`, `--api-key`)

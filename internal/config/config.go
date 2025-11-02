@@ -3,9 +3,9 @@ package config
 import (
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 
 	"gopkg.in/yaml.v3"
@@ -21,13 +21,14 @@ type Config struct {
 
 // Profile stores base URL for a SABnzbd instance.
 type Profile struct {
-	BaseURL string `yaml:"base_url"`
-	APIKey  string `yaml:"api_key,omitempty"`
+	BaseURL            string `yaml:"base_url"`
+	APIKey             string `yaml:"api_key,omitempty"`
+	AllowInsecureStore bool   `yaml:"allow_insecure_store,omitempty"`
 }
 
 // Load reads configuration from disk, returning an initialized Config.
 func Load() (*Config, error) {
-	path, err := path()
+	dir, err := resolveConfigDir()
 	if err != nil {
 		return nil, err
 	}
@@ -35,36 +36,38 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		DefaultProfile: "default",
 		Profiles:       map[string]Profile{},
-		path:           path,
 	}
 
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			if err := cfg.Save(); err != nil {
-				return nil, err
+	for _, name := range []string{"config.yml", "config.yaml"} {
+		path := filepath.Join(dir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			if errors.Is(err, os.ErrNotExist) {
+				continue
 			}
+			return nil, err
+		}
+
+		if len(data) == 0 {
+			cfg.path = path
 			return cfg, nil
 		}
-		return nil, err
-	}
 
-	if len(data) == 0 {
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, err
+		}
+
+		cfg.path = path
+		if cfg.Profiles == nil {
+			cfg.Profiles = map[string]Profile{}
+		}
+		if cfg.DefaultProfile == "" {
+			cfg.DefaultProfile = "default"
+		}
 		return cfg, nil
 	}
 
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, err
-	}
-
-	cfg.path = path
-	if cfg.Profiles == nil {
-		cfg.Profiles = map[string]Profile{}
-	}
-	if cfg.DefaultProfile == "" {
-		cfg.DefaultProfile = "default"
-	}
-
+	cfg.path = filepath.Join(dir, "config.yml")
 	return cfg, nil
 }
 
@@ -73,8 +76,19 @@ func (c *Config) Save() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
+	if c.path == "" {
+		dir, err := resolveConfigDir()
+		if err != nil {
+			return err
+		}
+		c.path = filepath.Join(dir, "config.yml")
+	}
+
 	if c.Profiles == nil {
 		c.Profiles = map[string]Profile{}
+	}
+	if c.DefaultProfile == "" {
+		c.DefaultProfile = "default"
 	}
 
 	data, err := yaml.Marshal(c)
@@ -82,15 +96,50 @@ func (c *Config) Save() error {
 		return err
 	}
 
-	if err := os.MkdirAll(filepath.Dir(c.path), 0o755); err != nil {
-		return err
+	dir := filepath.Dir(c.path)
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		return fmt.Errorf("create config directory: %w", err)
 	}
 
-	return os.WriteFile(c.path, data, 0o600)
+	tmpFile, err := os.CreateTemp(dir, ".config-*.yml")
+	if err != nil {
+		return fmt.Errorf("create temp config: %w", err)
+	}
+	defer func() {
+		_ = os.Remove(tmpFile.Name())
+	}()
+
+	if _, err := tmpFile.Write(data); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("write temp config: %w", err)
+	}
+
+	// Sync to ensure data is written to disk before rename
+	if err := tmpFile.Sync(); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("sync temp config: %w", err)
+	}
+
+	if err := tmpFile.Chmod(0o600); err != nil {
+		_ = tmpFile.Close()
+		return fmt.Errorf("chmod temp config: %w", err)
+	}
+
+	if err := tmpFile.Close(); err != nil {
+		return fmt.Errorf("close temp config: %w", err)
+	}
+
+	if err := os.Rename(tmpFile.Name(), c.path); err != nil {
+		return fmt.Errorf("write config: %w", err)
+	}
+
+	return nil
 }
 
 // Path returns the config file location.
 func (c *Config) Path() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.path
 }
 
@@ -134,10 +183,14 @@ func (c *Config) ActiveProfile(override string) (string, Profile, error) {
 	return name, profile, nil
 }
 
-func path() (string, error) {
+func resolveConfigDir() (string, error) {
+	if base := strings.TrimSpace(os.Getenv("SABX_CONFIG_DIR")); base != "" {
+		return base, nil
+	}
+
 	dir, err := os.UserConfigDir()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "sabx", "config.yaml"), nil
+	return filepath.Join(dir, "sabx"), nil
 }

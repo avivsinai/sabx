@@ -188,7 +188,12 @@ func resolveConnection(cfg *config.Config) (profile, baseURL, apiKey string, err
 	}
 
 	if apiKey == "" {
-		key, keyErr := auth.LoadAPIKey(profileOrDefault(profile), baseURL)
+		storeOpts := []auth.Option{}
+		if profileCfg.AllowInsecureStore {
+			storeOpts = append(storeOpts, auth.WithAllowFileFallback(true))
+		}
+
+		key, keyErr := auth.LoadAPIKey(profileOrDefault(profile), baseURL, storeOpts...)
 		if keyErr != nil {
 			if profileCfg.APIKey != "" {
 				apiKey = profileCfg.APIKey

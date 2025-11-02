@@ -79,8 +79,8 @@ sabx top
 ```
 
 ## Configuration & Profiles
-- Config file: `~/Library/Application Support/sabx/config.yaml` (macOS), `%APPDATA%\sabx\config.yaml` (Windows), `~/.config/sabx/config.yaml` (Linux) - auto-created.
-- Credentials stored in macOS Keychain / Windows Credential Manager / Secret Service via [`go-keyring`](https://github.com/zalando/go-keyring).
+- Config file: `config.yml` under `$SABX_CONFIG_DIR` (defaults to `~/Library/Application Support/sabx/` on macOS, `%APPDATA%\sabx\` on Windows, `~/.config/sabx/` on Linux). Writes use atomic swaps with `0o700` directory perms.
+- Credentials stored in macOS Keychain / Windows Credential Manager / GNOME Keyring via [`github.com/99designs/keyring`](https://github.com/99designs/keyring). Opt into encrypted file fallback with `--allow-insecure-store` (or `SABX_ALLOW_INSECURE_STORE=1`) and plaintext config storage with `--store-in-config`.
 - Override per invocation with `--profile`, `--base-url`, `--api-key`, or env vars `SABX_BASE_URL`, `SABX_API_KEY`.
 
 ## Command Reference
