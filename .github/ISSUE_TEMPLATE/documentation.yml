@@ -1,0 +1,60 @@
+name: Documentation Improvement
+description: Suggest improvements to documentation
+labels: ["documentation"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve the documentation!
+
+  - type: dropdown
+    id: doc-type
+    attributes:
+      label: Documentation Type
+      description: What type of documentation needs improvement?
+      options:
+        - README
+        - Command help text
+        - Code comments
+        - CONTRIBUTING guide
+        - API coverage docs
+        - Examples
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: location
+    attributes:
+      label: Location
+      description: Where is the documentation that needs improvement?
+      placeholder: |
+        File: README.md, line 75
+        Command: `sabx queue --help`
+        URL: https://github.com/sabx/sabx/...
+    validations:
+      required: true
+
+  - type: textarea
+    id: issue
+    attributes:
+      label: Issue
+      description: What's wrong or missing in the current documentation?
+      placeholder: The example for queue operations doesn't show...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestion
+    attributes:
+      label: Suggested Improvement
+      description: How should it be improved?
+      placeholder: Add an example showing how to...
+    validations:
+      required: true
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: Additional Context
+      description: Any other context or examples

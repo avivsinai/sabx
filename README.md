@@ -1,5 +1,11 @@
 # sabx
 
+[![CI](https://github.com/sabx/sabx/actions/workflows/ci.yml/badge.svg)](https://github.com/sabx/sabx/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/sabx/sabx)](https://go.dev/)
+[![License](https://img.shields.io/github/license/sabx/sabx)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/sabx/sabx)](https://goreportcard.com/report/github.com/sabx/sabx)
+[![Release](https://img.shields.io/github/v/release/sabx/sabx)](https://github.com/sabx/sabx/releases/latest)
+
 > A batteries-included SABnzbd CLI and automation toolkit inspired by modern OSS CLIs like [`gh`](https://github.com/cli/cli) and [`chezmoi`](https://github.com/twpayne/chezmoi).
 
 `sabx` mirrors the complete SABnzbd surface area—queue control, RSS management, scheduler, configuration, and server administration—in a fast Go binary designed for power users and automation.
@@ -73,7 +79,7 @@ sabx top
 ```
 
 ## Configuration & Profiles
-- Config file: `~/.config/sabx/config.yaml` (auto-created).
+- Config file: `~/Library/Application Support/sabx/config.yaml` (macOS), `%APPDATA%\sabx\config.yaml` (Windows), `~/.config/sabx/config.yaml` (Linux) - auto-created.
 - Credentials stored in macOS Keychain / Windows Credential Manager / Secret Service via [`go-keyring`](https://github.com/zalando/go-keyring).
 - Override per invocation with `--profile`, `--base-url`, `--api-key`, or env vars `SABX_BASE_URL`, `SABX_API_KEY`.
 
