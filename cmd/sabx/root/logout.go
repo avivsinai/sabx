@@ -35,13 +35,16 @@ func logoutCmd() *cobra.Command {
 				return fmt.Errorf("profile %q not found", profileName)
 			}
 
-			storeOpts := []auth.Option{}
-			if prof.AllowInsecureStore {
-				storeOpts = append(storeOpts, auth.WithAllowFileFallback(true))
-			}
+			// Only attempt keyring deletion if API key is not stored in config
+			if prof.APIKey == "" {
+				storeOpts := []auth.Option{}
+				if prof.AllowInsecureStore {
+					storeOpts = append(storeOpts, auth.WithAllowFileFallback(true))
+				}
 
-			if err := auth.DeleteAPIKey(profileName, prof.BaseURL, storeOpts...); err != nil && !errors.Is(err, auth.ErrNotFound) {
-				return fmt.Errorf("failed to delete keyring entry: %w", err)
+				if err := auth.DeleteAPIKey(profileName, prof.BaseURL, storeOpts...); err != nil && !errors.Is(err, auth.ErrNotFound) {
+					return fmt.Errorf("failed to delete keyring entry: %w", err)
+				}
 			}
 
 			if removeProfile {
