@@ -1,10 +1,10 @@
 # sabx
 
-[![CI](https://github.com/sabx/sabx/actions/workflows/ci.yml/badge.svg)](https://github.com/sabx/sabx/actions/workflows/ci.yml)
-[![Go Version](https://img.shields.io/github/go-mod/go-version/sabx/sabx)](https://go.dev/)
-[![License](https://img.shields.io/github/license/sabx/sabx)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/sabx/sabx)](https://goreportcard.com/report/github.com/sabx/sabx)
-[![Release](https://img.shields.io/github/v/release/sabx/sabx)](https://github.com/sabx/sabx/releases/latest)
+[![CI](https://github.com/avivsinai/sabx/actions/workflows/ci.yml/badge.svg)](https://github.com/avivsinai/sabx/actions/workflows/ci.yml)
+[![Go Version](https://img.shields.io/github/go-mod/go-version/avivsinai/sabx)](https://go.dev/)
+[![License](https://img.shields.io/github/license/avivsinai/sabx)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/avivsinai/sabx)](https://goreportcard.com/report/github.com/avivsinai/sabx)
+[![Release](https://img.shields.io/github/v/release/avivsinai/sabx)](https://github.com/avivsinai/sabx/releases/latest)
 
 > A batteries-included SABnzbd CLI and automation toolkit inspired by modern OSS CLIs like [`gh`](https://github.com/cli/cli) and [`chezmoi`](https://github.com/twpayne/chezmoi).
 
@@ -18,10 +18,10 @@
 ## Installation
 ```bash
 # Go 1.22+
-go install github.com/sabx/sabx/cmd/sabx@latest
+go install github.com/avivsinai/sabx/cmd/sabx@latest
 
 # Build from source
-git clone https://github.com/sabx/sabx.git
+git clone https://github.com/avivsinai/sabx.git
 cd sabx
 go build ./cmd/sabx
 ./sabx --help
