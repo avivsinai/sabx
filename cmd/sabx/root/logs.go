@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sabx/sabx/internal/sabapi"
+	"github.com/avivsinai/sabx/internal/sabapi"
 )
 
 const defaultTailLines = 50

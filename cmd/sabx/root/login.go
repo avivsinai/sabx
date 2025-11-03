@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sabx/sabx/internal/auth"
-	"github.com/sabx/sabx/internal/config"
+	"github.com/avivsinai/sabx/internal/auth"
+	"github.com/avivsinai/sabx/internal/config"
 )
 
 func loginCmd() *cobra.Command {

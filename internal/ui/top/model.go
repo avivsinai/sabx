@@ -8,7 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 
-	"github.com/sabx/sabx/internal/sabapi"
+	"github.com/avivsinai/sabx/internal/sabapi"
 )
 
 const refreshInterval = 2 * time.Second

@@ -3,9 +3,9 @@ package cobraext
 import (
 	"context"
 
-	"github.com/sabx/sabx/internal/config"
-	"github.com/sabx/sabx/internal/output"
-	"github.com/sabx/sabx/internal/sabapi"
+	"github.com/avivsinai/sabx/internal/config"
+	"github.com/avivsinai/sabx/internal/output"
+	"github.com/avivsinai/sabx/internal/sabapi"
 )
 
 type contextKey string

@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/sabx/sabx/cmd/sabx/root"
+	"github.com/avivsinai/sabx/cmd/sabx/root"
 )
 
 func main() {

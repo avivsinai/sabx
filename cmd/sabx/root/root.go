@@ -9,12 +9,12 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"github.com/sabx/sabx/internal/auth"
-	"github.com/sabx/sabx/internal/cobraext"
-	"github.com/sabx/sabx/internal/config"
-	"github.com/sabx/sabx/internal/extensions"
-	"github.com/sabx/sabx/internal/output"
-	"github.com/sabx/sabx/internal/sabapi"
+	"github.com/avivsinai/sabx/internal/auth"
+	"github.com/avivsinai/sabx/internal/cobraext"
+	"github.com/avivsinai/sabx/internal/config"
+	"github.com/avivsinai/sabx/internal/extensions"
+	"github.com/avivsinai/sabx/internal/output"
+	"github.com/avivsinai/sabx/internal/sabapi"
 )
 
 var (

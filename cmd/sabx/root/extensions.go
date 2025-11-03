@@ -5,7 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sabx/sabx/internal/extensions"
+	"github.com/avivsinai/sabx/internal/extensions"
 )
 
 func extensionsCmd() *cobra.Command {

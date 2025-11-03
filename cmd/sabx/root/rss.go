@@ -9,7 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sabx/sabx/internal/cobraext"
+	"github.com/avivsinai/sabx/internal/cobraext"
 )
 
 func rssCmd() *cobra.Command {

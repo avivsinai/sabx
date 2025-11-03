@@ -7,8 +7,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/sabx/sabx/internal/buildinfo"
-	"github.com/sabx/sabx/internal/output"
+	"github.com/avivsinai/sabx/internal/buildinfo"
+	"github.com/avivsinai/sabx/internal/output"
 )
 
 func versionCmd() *cobra.Command {

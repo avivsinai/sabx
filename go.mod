@@ -1,4 +1,4 @@
-module github.com/sabx/sabx
+module github.com/avivsinai/sabx
 
 go 1.24.0
 

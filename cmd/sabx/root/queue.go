@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/sabx/sabx/internal/sabapi"
+	"github.com/avivsinai/sabx/internal/sabapi"
 )
 
 func queueCmd() *cobra.Command {
