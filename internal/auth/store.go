@@ -60,13 +60,6 @@ func WithPassphrase(pass string) Option {
 	}
 }
 
-// withAllowedBackends overrides backend selection; intended for tests.
-func withAllowedBackends(backends []keyring.BackendType) Option {
-	return func(o *openOptions) {
-		o.allowedBackends = backends
-	}
-}
-
 // WithFileDir overrides the encrypted file backend directory.
 func WithFileDir(dir string) Option {
 	return func(o *openOptions) {
