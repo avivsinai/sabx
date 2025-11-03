@@ -38,7 +38,8 @@ func logoutCmd() *cobra.Command {
 			// Only attempt keyring deletion if API key is not stored in config
 			if prof.APIKey == "" {
 				storeOpts := []auth.Option{}
-				if prof.AllowInsecureStore {
+				// Check both profile config and environment variable for fallback permission
+				if prof.AllowInsecureStore || auth.AllowInsecureStoreFromEnv() {
 					storeOpts = append(storeOpts, auth.WithAllowFileFallback(true))
 				}
 

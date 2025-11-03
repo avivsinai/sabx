@@ -189,7 +189,8 @@ func resolveConnection(cfg *config.Config) (profile, baseURL, apiKey string, err
 
 	if apiKey == "" {
 		storeOpts := []auth.Option{}
-		if profileCfg.AllowInsecureStore {
+		// Check both profile config and environment variable for fallback permission
+		if profileCfg.AllowInsecureStore || auth.AllowInsecureStoreFromEnv() {
 			storeOpts = append(storeOpts, auth.WithAllowFileFallback(true))
 		}
 
