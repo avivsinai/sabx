@@ -18,9 +18,9 @@ VERSION ?= $(shell \
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 LDFLAGS := -s -w \
-	-X github.com/sabx/sabx/internal/buildinfo.Version=$(VERSION) \
-	-X github.com/sabx/sabx/internal/buildinfo.Commit=$(COMMIT) \
-	-X github.com/sabx/sabx/internal/buildinfo.Date=$(BUILD_DATE)
+	-X github.com/avivsinai/sabx/internal/buildinfo.Version=$(VERSION) \
+	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
+	-X github.com/avivsinai/sabx/internal/buildinfo.Date=$(BUILD_DATE)
 
 .PHONY: build
 build: $(BIN_DIR)/sabx
@@ -62,4 +62,3 @@ snapshot:
 .PHONY: smoke
 smoke:
 	$(GO) test ./test/e2e -run TestSmokeAgainstSABContainer -count=1
-

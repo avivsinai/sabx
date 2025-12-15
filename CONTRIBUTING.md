@@ -4,11 +4,11 @@ We welcome contributions that help `sabx` become the go-to SABnzbd CLI. This gui
 
 ## Before You Start
 - **Discuss major ideas** by filing an issue or starting a discussion. Reference comparable tooling such as [`gh`](https://github.com/cli/cli) for UX inspiration.
-- Ensure you have Go 1.22+, SABnzbd (locally or Docker), and `gh` for GitHub workflows.
+- Ensure you have Go 1.24+, SABnzbd (locally or Docker), and `gh` for GitHub workflows.
 
 ## Local Setup
 ```bash
-git clone https://github.com/sabx/sabx.git
+git clone https://github.com/avivsinai/sabx.git
 cd sabx
 make setup # optional helper script when available
 ```

@@ -17,7 +17,7 @@
 
 ## Installation
 ```bash
-# Go 1.22+
+# Go 1.24+
 go install github.com/avivsinai/sabx/cmd/sabx@latest
 
 # Build from source
