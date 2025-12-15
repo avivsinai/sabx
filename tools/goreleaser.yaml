@@ -22,9 +22,9 @@ builds:
         goarch: arm64
     ldflags:
       - -s -w
-      - -X github.com/sabx/sabx/internal/buildinfo.Version={{ .Version }}
-      - -X github.com/sabx/sabx/internal/buildinfo.Commit={{ .Commit }}
-      - -X github.com/sabx/sabx/internal/buildinfo.Date={{ .Date }}
+      - -X github.com/avivsinai/sabx/internal/buildinfo.Version={{ .Version }}
+      - -X github.com/avivsinai/sabx/internal/buildinfo.Commit={{ .Commit }}
+      - -X github.com/avivsinai/sabx/internal/buildinfo.Date={{ .Date }}
     flags:
       - -trimpath
 
