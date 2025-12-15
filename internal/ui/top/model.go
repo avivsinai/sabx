@@ -2,6 +2,7 @@ package top
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -15,7 +16,7 @@ const refreshInterval = 2 * time.Second
 
 // Run launches the Bubble Tea dashboard.
 func Run(ctx context.Context, client *sabapi.Client) error {
-	m := model{client: client, historyLimit: 15}
+	m := model{ctx: ctx, client: client, historyLimit: 15}
 	p := tea.NewProgram(m)
 	done := make(chan error, 1)
 
@@ -26,6 +27,14 @@ func Run(ctx context.Context, client *sabapi.Client) error {
 
 	select {
 	case <-ctx.Done():
+		p.Quit()
+		err := <-done
+		if err != nil && !errors.Is(err, tea.ErrProgramKilled) {
+			return err
+		}
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return nil
+		}
 		return ctx.Err()
 	case err := <-done:
 		return err
@@ -33,6 +42,7 @@ func Run(ctx context.Context, client *sabapi.Client) error {
 }
 
 type model struct {
+	ctx          context.Context
 	client       *sabapi.Client
 	queue        *sabapi.QueueResponse
 	status       *sabapi.StatusResponse
@@ -51,7 +61,7 @@ type dataMsg struct {
 type tickMsg struct{}
 
 func (m model) Init() tea.Cmd {
-	return tea.Batch(fetchCmd(m.client, m.historyLimit), tickCmd())
+	return tea.Batch(fetchCmd(m.ctx, m.client, m.historyLimit), tickCmd())
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -72,7 +82,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, tickCmd()
 	case tickMsg:
-		return m, fetchCmd(m.client, m.historyLimit)
+		return m, fetchCmd(m.ctx, m.client, m.historyLimit)
 	}
 	return m, nil
 }
@@ -110,9 +120,12 @@ func (m model) View() string {
 	return b.String()
 }
 
-func fetchCmd(client *sabapi.Client, historyLimit int) tea.Cmd {
+func fetchCmd(parent context.Context, client *sabapi.Client, historyLimit int) tea.Cmd {
 	return func() tea.Msg {
-		ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+		if parent == nil {
+			parent = context.Background()
+		}
+		ctx, cancel := context.WithTimeout(parent, 8*time.Second)
 		defer cancel()
 
 		queue, err := client.Queue(ctx, 0, 0, "")

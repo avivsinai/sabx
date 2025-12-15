@@ -28,6 +28,36 @@ type Client struct {
 	http    *http.Client
 }
 
+const redactedAPIKeyValue = "***redacted***"
+
+type apiKeyRedactedError struct {
+	err    error
+	apiKey string
+}
+
+func (e apiKeyRedactedError) Error() string {
+	msg := e.err.Error()
+	if e.apiKey == "" {
+		return msg
+	}
+	msg = strings.ReplaceAll(msg, e.apiKey, redactedAPIKeyValue)
+	if escaped := url.QueryEscape(e.apiKey); escaped != e.apiKey {
+		msg = strings.ReplaceAll(msg, escaped, redactedAPIKeyValue)
+	}
+	return msg
+}
+
+func (e apiKeyRedactedError) Unwrap() error {
+	return e.err
+}
+
+func redactAPIKeyError(err error, apiKey string) error {
+	if err == nil || apiKey == "" {
+		return err
+	}
+	return apiKeyRedactedError{err: err, apiKey: apiKey}
+}
+
 // Option configures the Client.
 type Option func(*Client)
 
@@ -74,12 +104,12 @@ func (c *Client) do(ctx context.Context, mode string, params url.Values) (*http.
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, redactAPIKeyError(err, c.apiKey)
 	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, redactAPIKeyError(err, c.apiKey)
 	}
 
 	if resp.StatusCode >= 400 {

@@ -83,6 +83,15 @@ func TestSmokeAgainstSABContainer(t *testing.T) {
 	if _, err := exec.LookPath("docker"); err != nil {
 		t.Skip("docker binary not available")
 	}
+	{
+		infoCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		cmd := exec.CommandContext(infoCtx, "docker", "info")
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Skipf("docker daemon not available: %v (%s)", err, strings.TrimSpace(string(out)))
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

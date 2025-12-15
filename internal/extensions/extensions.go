@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -291,37 +292,108 @@ func saveMetadata(meta metadata) error {
 }
 
 func deriveSource(source string) (name, repo string, kind string, err error) {
+	source = strings.TrimSpace(source)
 	if source == "" {
 		return "", "", "", errors.New("source is required")
 	}
 
-	if strings.Contains(source, string(os.PathSeparator)) || strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") || strings.HasPrefix(source, "/") {
-		abs, err := filepath.Abs(source)
-		if err != nil {
-			return "", "", "", err
-		}
-		base := filepath.Base(abs)
+	resolvedPath, ok, err := resolveExistingPath(source)
+	if err != nil {
+		return "", "", "", err
+	}
+	if ok {
+		base := filepath.Base(resolvedPath)
 		name = strings.TrimPrefix(base, "sabx-")
 		if name == "" {
 			name = base
 		}
-		return name, abs, "local", nil
+		return name, resolvedPath, "local", nil
+	}
+	if looksLikePath(source) {
+		return "", "", "", fmt.Errorf("local source path %q not found", source)
 	}
 
 	repo = source
-	if !strings.HasSuffix(repo, ".git") && !strings.HasPrefix(repo, "http://") && !strings.HasPrefix(repo, "https://") {
-		repo = fmt.Sprintf("https://github.com/%s.git", source)
-	}
 	if strings.HasPrefix(repo, "http://") || strings.HasPrefix(repo, "https://") {
-		base := filepath.Base(strings.TrimSuffix(repo, ".git"))
-		name = strings.TrimPrefix(base, "sabx-")
-		if name == "" {
-			name = base
-		}
-		return name, repo, "git", nil
+		// Leave the URL as-is; git can clone without a .git suffix.
+		return extensionNameFromRepo(repo), repo, "git", nil
+	}
+	if strings.HasPrefix(repo, "git@") || strings.HasPrefix(repo, "ssh://") {
+		return extensionNameFromRepo(repo), repo, "git", nil
 	}
 
-	return "", "", "", fmt.Errorf("unsupported source format: %s", source)
+	// Treat everything else as a GitHub shorthand (owner/repo) or git URL fragment.
+	repo = fmt.Sprintf("https://github.com/%s", repo)
+	if !strings.HasSuffix(repo, ".git") {
+		repo += ".git"
+	}
+	return extensionNameFromRepo(repo), repo, "git", nil
+}
+
+func looksLikePath(source string) bool {
+	if source == "." || source == ".." {
+		return true
+	}
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") || strings.HasPrefix(source, "~") {
+		return true
+	}
+	if filepath.IsAbs(source) || filepath.VolumeName(source) != "" {
+		return true
+	}
+	if strings.Contains(source, "\\") {
+		// Likely a Windows path on a non-Windows host.
+		return true
+	}
+	return false
+}
+
+func resolveExistingPath(source string) (string, bool, error) {
+	candidates := []string{source}
+	if strings.HasPrefix(source, "~") {
+		expanded, err := expandHome(source)
+		if err != nil {
+			return "", false, err
+		}
+		candidates = append(candidates, expanded)
+	}
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate) == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate); err == nil {
+			abs, err := filepath.Abs(candidate)
+			if err != nil {
+				return "", false, err
+			}
+			return abs, true, nil
+		} else if !errors.Is(err, fs.ErrNotExist) {
+			return "", false, err
+		}
+	}
+	return "", false, nil
+}
+
+func expandHome(path string) (string, error) {
+	if path == "~" {
+		return os.UserHomeDir()
+	}
+	if strings.HasPrefix(path, "~/") || strings.HasPrefix(path, "~\\") {
+		home, err := os.UserHomeDir()
+		if err != nil {
+			return "", err
+		}
+		return filepath.Join(home, path[2:]), nil
+	}
+	return path, nil
+}
+
+func extensionNameFromRepo(repo string) string {
+	base := filepath.Base(strings.TrimSuffix(repo, ".git"))
+	name := strings.TrimPrefix(base, "sabx-")
+	if name == "" {
+		name = base
+	}
+	return name
 }
 
 func cloneRepo(url, target string) error {
@@ -351,11 +423,30 @@ func copyLocalDirectory(src, dst string) error {
 			}
 			continue
 		}
-		data, err := os.ReadFile(srcPath)
+		info, err := entry.Info()
 		if err != nil {
 			return err
 		}
-		if err := os.WriteFile(dstPath, data, 0o755); err != nil {
+		srcFile, err := os.Open(srcPath)
+		if err != nil {
+			return err
+		}
+
+		dstFile, err := os.OpenFile(dstPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode().Perm())
+		if err != nil {
+			_ = srcFile.Close()
+			return err
+		}
+		if _, err := io.Copy(dstFile, srcFile); err != nil {
+			_ = srcFile.Close()
+			_ = dstFile.Close()
+			return err
+		}
+		if err := srcFile.Close(); err != nil {
+			_ = dstFile.Close()
+			return err
+		}
+		if err := dstFile.Close(); err != nil {
 			return err
 		}
 	}
@@ -370,15 +461,18 @@ func findBinary(dir, name string) (string, error) {
 			return err
 		}
 		if d.IsDir() {
+			if d.Name() == ".git" {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if filepath.Base(path) == expected {
 			found = path
-			return fs.SkipDir
+			return fs.SkipAll
 		}
 		return nil
 	})
-	if err != nil && !errors.Is(err, fs.SkipDir) {
+	if err != nil && !errors.Is(err, fs.SkipAll) {
 		return "", err
 	}
 	if found == "" {
