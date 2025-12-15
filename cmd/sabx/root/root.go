@@ -45,7 +45,7 @@ var rootCmd = &cobra.Command{
 			Printer: printer,
 		}
 
-		if cmd.Annotations["skipPersistent"] != "true" {
+		if !skipPersistent(cmd) {
 			profileName, baseURL, apiKey, err := resolveConnection(cfg)
 			if err != nil {
 				return err
@@ -199,7 +199,7 @@ func resolveConnection(cfg *config.Config) (profile, baseURL, apiKey string, err
 			if profileCfg.APIKey != "" {
 				apiKey = profileCfg.APIKey
 			} else {
-				return profile, baseURL, apiKey, fmt.Errorf("api key not found for profile %q (%v)", profileOrDefault(profile), keyErr)
+				return profile, baseURL, apiKey, fmt.Errorf("api key not found for profile %q: %w", profileOrDefault(profile), keyErr)
 			}
 		} else {
 			apiKey = key
@@ -222,4 +222,13 @@ func getApp(cmd *cobra.Command) (*cobraext.App, error) {
 		return nil, errors.New("internal: app context missing")
 	}
 	return app, nil
+}
+
+func skipPersistent(cmd *cobra.Command) bool {
+	for c := cmd; c != nil; c = c.Parent() {
+		if c.Annotations != nil && c.Annotations["skipPersistent"] == "true" {
+			return true
+		}
+	}
+	return false
 }
