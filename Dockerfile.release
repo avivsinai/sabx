@@ -1,10 +1,6 @@
-FROM golang:1.24-alpine AS build
-WORKDIR /src
-COPY . .
-RUN go build -o /out/sabx ./cmd/sabx
-
 FROM alpine:3.20
-RUN adduser -D -u 10001 sabx
-COPY --from=build /out/sabx /usr/local/bin/sabx
+ARG TARGETARCH
+RUN apk add --no-cache ca-certificates && adduser -D -u 10001 sabx
+COPY linux/${TARGETARCH}/sabx /usr/local/bin/sabx
 USER sabx
 ENTRYPOINT ["sabx"]

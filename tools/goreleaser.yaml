@@ -30,8 +30,8 @@ builds:
 
 archives:
   - id: sabx-archive
-    builds: [sabx]
-    format: tar.gz
+    ids: [sabx]
+    formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_
       {{- .Version }}_
@@ -42,62 +42,72 @@ archives:
       {{- if .Arm }}v{{ .Arm }}{{ end }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
       - RELEASE_NOTES.md
 
-brews:
+homebrew_casks:
   - name: sabx
     repository:
-      owner: sabx
+      owner: avivsinai
       name: homebrew-tap
       branch: main
-    description: "Full-fidelity SABnzbd CLI"
-    homepage: https://github.com/sabx/sabx
+    directory: Formula
+    description: Full-fidelity SABnzbd CLI
+    homepage: https://github.com/avivsinai/sabx
     license: MIT
-    install: |
-      bin.install "sabx"
-    test: |
-      system "#{bin}/sabx", "--help"
+    binaries:
+      - sabx
+    skip_upload: true
     commit_author:
       name: sabx automation
       email: releases@sabx.dev
-scoop:
-  bucket:
-    owner: sabx
-    name: scoop-bucket
-    branch: main
-  homepage: https://github.com/sabx/sabx
-  description: Full-fidelity SABnzbd CLI
-  license: MIT
-  url_template: "{{ .DownloadURL }}"
-  sha256_template: "{{ .SHA256 }}"
-  commit_author:
-    name: sabx automation
-    email: releases@sabx.dev
+
+scoops:
+  - name: sabx
+    repository:
+      owner: avivsinai
+      name: scoop-bucket
+      branch: main
+    homepage: https://github.com/avivsinai/sabx
+    description: Full-fidelity SABnzbd CLI
+    license: MIT
+    skip_upload: true
+    commit_author:
+      name: sabx automation
+      email: releases@sabx.dev
+
 winget:
-  publisher: sabx
-  package: sabx
-  homepage: https://github.com/sabx/sabx
-  short_description: Full-fidelity SABnzbd CLI
-  license: MIT
-  author: sabx
-  url_template: "{{ .DownloadURL }}"
-  sha256_template: "{{ .SHA256 }}"
-dockers:
-  - image_templates:
-      - "ghcr.io/sabx/sabx:{{ .Tag }}"
-      - "ghcr.io/sabx/sabx:latest"
+  - name: sabx
+    publisher: sabx
+    package_identifier: sabx.sabx
+    homepage: https://github.com/sabx/sabx
+    short_description: Full-fidelity SABnzbd CLI
+    license: MIT
+    commit_author:
+      name: sabx automation
+      email: releases@sabx.dev
+
+dockers_v2:
+  - id: sabx
+    ids: [sabx]
+    images:
+      - ghcr.io/avivsinai/sabx
+    tags:
+      - "{{ .Tag }}"
+      - latest
     dockerfile: Dockerfile.release
-    build_flag_templates:
-      - "--platform=linux/amd64,linux/arm64"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
 checksum:
-  name_template: "checksums.txt"
+  name_template: checksums.txt
 
 snapshot:
-  name_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
+  version_template: "{{ incpatch .Version }}-next+{{ .ShortCommit }}"
 
 changelog:
   sort: asc
@@ -126,7 +136,7 @@ changelog:
 
 release:
   github:
-    owner: sabx
+    owner: avivsinai
     name: sabx
   draft: false
   prerelease: false
