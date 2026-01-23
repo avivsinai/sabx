@@ -22,8 +22,22 @@ LDFLAGS := -s -w \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: build
+.PHONY: build sync-skills check-skills
 build: $(BIN_DIR)/sabx
+
+# Skill sync: .claude/skills/ is source of truth
+sync-skills:
+	@echo "Syncing skills from .claude/skills/ to .codex/skills/ and skills/..."
+	@mkdir -p .codex/skills/sabx skills/sabx
+	@cp -R .claude/skills/sabx/* .codex/skills/sabx/
+	@cp -R .claude/skills/sabx/* skills/sabx/
+	@echo "✓ Skills synced"
+
+check-skills:
+	@echo "Checking skill sync..."
+	@diff -rq .claude/skills/sabx .codex/skills/sabx || (echo "❌ .codex/skills/sabx out of sync" && exit 1)
+	@diff -rq .claude/skills/sabx skills/sabx || (echo "❌ skills/sabx out of sync" && exit 1)
+	@echo "✓ Skills in sync"
 
 $(BIN_DIR)/sabx: $(SOURCES) go.mod go.sum
 	@mkdir -p $(BIN_DIR)
