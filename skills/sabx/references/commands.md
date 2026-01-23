@@ -94,7 +94,9 @@ sabx status --performance         # Include performance metrics
 sabx status --full --performance  # Everything
 sabx status orphans list          # List orphaned files
 sabx status orphans delete <path> # Delete orphan
+sabx status orphans delete-all    # Delete all orphans
 sabx status orphans add <path>    # Add orphan to queue
+sabx status orphans add-all       # Add all orphans to queue
 
 sabx warnings list                # Runtime warnings
 sabx warnings clear               # Clear warnings
@@ -169,7 +171,7 @@ sabx categories delete <name>     # Delete category
 
 ```bash
 sabx schedule list                # List scheduled tasks
-sabx schedule add <name> --command <cmd> --day <days> --hour <HH> --min <MM>
+sabx schedule add <name> --set command=<cmd> --set day=<days> --set hour=<HH> --set min=<MM>
 # Commands: pause, resume, speedlimit, scan_folder, etc.
 # Days: daily, weekdays, mon, tue, wed, thu, fri, sat, sun, mon-fri, etc.
 sabx schedule set <name> --set hour=02

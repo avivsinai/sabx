@@ -94,7 +94,7 @@ sabx rss delete TVFeed
 ### Scheduler tasks
 ```bash
 sabx schedule list
-sabx schedule add NightPause --command pause --day mon-sun --hour 01 --min 00
+sabx schedule add NightPause --set command=pause --set day=mon-sun --set hour=01 --set min=00
 sabx schedule set NightPause --set hour=02
 sabx schedule delete NightPause
 ```
