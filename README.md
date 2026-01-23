@@ -156,3 +156,17 @@ Set `SABX_E2E_DISABLE=1` to skip container-based smoke tests when Docker is unav
 - List or remove extensions with `sabx extension list` and `sabx extension remove <name>`.
 
 Extensions live under `~/.sabx/extensions` and can also be distributed by placing `sabx-<name>` executables on `PATH`.
+
+## Claude Code Skill
+
+The `sabx` skill teaches Claude Code (and Codex CLI) how to use `sabx` commands effectively.
+
+**Via skild.sh (registry-based):**
+```bash
+npx skild install @avivsinai/sabx
+```
+
+**Via skills.sh (GitHub-based):**
+```bash
+npx skills add avivsinai/sabx
+```
