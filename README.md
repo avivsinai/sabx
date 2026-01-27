@@ -161,12 +161,12 @@ Extensions live under `~/.sabx/extensions` and can also be distributed by placin
 
 The `sabx` skill teaches Claude Code (and Codex CLI) how to use `sabx` commands effectively.
 
-**Via skild.sh (registry-based):**
+**Via [skills](https://github.com/vercel-labs/add-skill)** (recommended):
 ```bash
-npx skild install @avivsinai/sabx
+npx skills add avivsinai/sabx -g -y
 ```
 
-**Via skills.sh (GitHub-based):**
+**Via [skild](https://skild.sh)**:
 ```bash
-npx skills add avivsinai/sabx
+npx skild install @avivsinai/sabx -t claude -y
 ```
