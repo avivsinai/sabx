@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-02-21
+
 ### Features
 
 - Add plugin manifest and agent-scoped skills
@@ -14,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Miscellaneous
 
+- Migrate golangci-lint from v1 to v2 (#12)
+- Bump Go module dependencies: keyring, cobra, viper, testcontainers (#6)
+- Bump GitHub Actions: checkout v6, cache v5, upload-artifact v6, setup-node v6 (#4, #5, #7, #8)
 - Add dependabot for Go modules and GitHub Actions (#3)
 - Add skild.sh and skills.sh installation methods
 - Align skill config with amq-cli pattern
