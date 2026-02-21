@@ -27,7 +27,7 @@ func versionCmd() *cobra.Command {
 			if printer.JSON {
 				return printer.Print(info)
 			}
-			fmt.Fprintln(cmd.OutOrStdout(), humanVersion(info))
+			_, _ = fmt.Fprintln(cmd.OutOrStdout(), humanVersion(info))
 			return nil
 		},
 	}

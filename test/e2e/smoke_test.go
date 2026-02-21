@@ -176,11 +176,11 @@ func newHarness(ctx context.Context, t *testing.T) (*harness, error) {
 	}
 
 	if err := h.refreshAPIKey(ctx); err != nil {
-		h.Close(ctx)
+		_ = h.Close(ctx)
 		return nil, err
 	}
 	if err := h.ensureReady(ctx); err != nil {
-		h.Close(ctx)
+		_ = h.Close(ctx)
 		return nil, err
 	}
 
@@ -205,11 +205,11 @@ func (h *harness) ensureReady(ctx context.Context) error {
 
 		resp, err := client.Do(req)
 		if err == nil && resp.StatusCode == http.StatusOK {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 			return nil
 		}
 		if resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -298,7 +298,7 @@ func runSmoke(ctx context.Context, repoRoot, baseURL, apiKey string) error {
 	if err != nil {
 		return fmt.Errorf("create smoke output dir: %w", err)
 	}
-	defer os.RemoveAll(tmpDir)
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
 	args := []string{
 		"run", "./tools/smoke",
