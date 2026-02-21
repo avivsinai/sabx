@@ -85,16 +85,16 @@ func loginCmd() *cobra.Command {
 			} else {
 				// Best-effort cleanup in case a previous login wrote to the keyring.
 				if err := auth.DeleteAPIKey(profile, baseURL, storeOpts...); err != nil && !errors.Is(err, auth.ErrNotFound) {
-					fmt.Fprintf(cmd.ErrOrStderr(), "Warning: unable to remove keyring entry (%v)\n", err)
+					_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: unable to remove keyring entry (%v)\n", err)
 				}
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "Saved profile %q (base URL: %s)\n", profile, baseURL)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Saved profile %q (base URL: %s)\n", profile, baseURL)
 			if allowFallback {
-				fmt.Fprintln(cmd.OutOrStdout(), "Note: Encrypted file fallback enabled; consider disabling with --allow-insecure-store=false on trusted hosts.")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Note: Encrypted file fallback enabled; consider disabling with --allow-insecure-store=false on trusted hosts.")
 			}
 			if storeInConfig {
-				fmt.Fprintln(cmd.OutOrStdout(), "Warning: API key stored insecurely in config file.")
+				_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Warning: API key stored insecurely in config file.")
 			}
 			return nil
 		},

@@ -113,7 +113,7 @@ func (c *Client) do(ctx context.Context, mode string, params url.Values) (*http.
 	}
 
 	if resp.StatusCode >= 400 {
-		defer resp.Body.Close()
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("sabnzbd API error: %s", resp.Status)
 	}
 
@@ -131,7 +131,7 @@ func (c *Client) call(ctx context.Context, mode string, params url.Values, dest 
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if dest == nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
@@ -249,7 +249,7 @@ func (c *Client) AddFile(ctx context.Context, path string, opts AddOptions) (*Ad
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -302,7 +302,7 @@ func (c *Client) AddFile(ctx context.Context, path string, opts AddOptions) (*Ad
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("sabnzbd API error: %s", resp.Status)
@@ -1016,7 +1016,7 @@ func (c *Client) ShowLog(ctx context.Context) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(resp.Body)
 	if err != nil {

@@ -57,10 +57,10 @@ func (p *Printer) Table(headers []string, rows [][]string) error {
 	}
 	tw := tabwriter.NewWriter(p.Out, 2, 4, 2, ' ', 0)
 	if len(headers) > 0 {
-		fmt.Fprintln(tw, strings.Join(headers, "\t"))
+		_, _ = fmt.Fprintln(tw, strings.Join(headers, "\t"))
 	}
 	for _, row := range rows {
-		fmt.Fprintln(tw, strings.Join(row, "\t"))
+		_, _ = fmt.Fprintln(tw, strings.Join(row, "\t"))
 	}
 	return tw.Flush()
 }
@@ -70,5 +70,5 @@ func (p *Printer) Error(format string, args ...any) {
 	if p.Err == nil || p.Quiet {
 		return
 	}
-	fmt.Fprintf(p.Err, format+"\n", args...)
+	_, _ = fmt.Fprintf(p.Err, format+"\n", args...)
 }

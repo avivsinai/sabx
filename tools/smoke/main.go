@@ -212,7 +212,7 @@ func resolveBinary(userPath string) (string, func(), error) {
 	build.Stderr = os.Stderr
 	build.Env = os.Environ()
 	if err := build.Run(); err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		return "", nil, fmt.Errorf("failed to build sabx: %w", err)
 	}
 
