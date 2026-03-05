@@ -5,7 +5,7 @@ go 1.24.0
 require (
 	github.com/99designs/keyring v1.2.2
 	github.com/charmbracelet/bubbletea v1.3.10
-	github.com/docker/docker v28.5.1+incompatible
+	github.com/docker/docker v28.5.2+incompatible
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	github.com/spf13/viper v1.21.0
