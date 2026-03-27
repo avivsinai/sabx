@@ -9,5 +9,10 @@
   "repository": "https://github.com/avivsinai/sabx",
   "license": "MIT",
   "skills": "./skills/",
-  "keywords": ["sabnzbd", "usenet", "downloads", "nzb", "queue", "automation", "cli"]
+  "keywords": ["sabnzbd", "usenet", "downloads", "nzb", "queue", "automation", "cli"],
+  "interface": {
+    "displayName": "SABnzbd CLI",
+    "shortDescription": "Control SABnzbd downloads, queues, RSS feeds, speed limits, and automation",
+    "category": "Automation"
+  }
 }
