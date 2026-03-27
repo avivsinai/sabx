@@ -1,0 +1,13 @@
+{
+  "name": "sabx",
+  "version": "1.0.0",
+  "description": "SABnzbd CLI - control downloads, queues, RSS feeds, and automation via terminal",
+  "author": {
+    "name": "Aviv Sinai",
+    "url": "https://github.com/avivsinai"
+  },
+  "repository": "https://github.com/avivsinai/sabx",
+  "license": "MIT",
+  "skills": "./skills/",
+  "keywords": ["sabnzbd", "usenet", "downloads", "nzb", "queue", "automation", "cli"]
+}

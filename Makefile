@@ -22,22 +22,18 @@ LDFLAGS := -s -w \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: build sync-skills check-skills
+.PHONY: build check-skills
 build: $(BIN_DIR)/sabx
 
-# Skill sync: .claude/skills/ is source of truth
-sync-skills:
-	@echo "Syncing skills from .claude/skills/ to .codex/skills/ and skills/..."
-	@mkdir -p .codex/skills/sabx skills/sabx
-	@cp -R .claude/skills/sabx/* .codex/skills/sabx/
-	@cp -R .claude/skills/sabx/* skills/sabx/
-	@echo "✓ Skills synced"
-
+# Skill integrity: skills/ is canonical, .claude/skills/ and .agents/skills/ are symlinks
 check-skills:
-	@echo "Checking skill sync..."
-	@diff -rq .claude/skills/sabx .codex/skills/sabx || (echo "❌ .codex/skills/sabx out of sync" && exit 1)
-	@diff -rq .claude/skills/sabx skills/sabx || (echo "❌ skills/sabx out of sync" && exit 1)
-	@echo "✓ Skills in sync"
+	@echo "Checking skill symlinks..."
+	@test -L .claude/skills/sabx || (echo "❌ .claude/skills/sabx is not a symlink" && exit 1)
+	@test -L .agents/skills/sabx || (echo "❌ .agents/skills/sabx is not a symlink" && exit 1)
+	@test "$$(readlink .claude/skills/sabx)" = "../../skills/sabx" || (echo "❌ .claude/skills/sabx target is not ../../skills/sabx" && exit 1)
+	@test "$$(readlink .agents/skills/sabx)" = "../../skills/sabx" || (echo "❌ .agents/skills/sabx target is not ../../skills/sabx" && exit 1)
+	@diff -rq skills/sabx .claude/skills/sabx || (echo "❌ .claude/skills/sabx content mismatch" && exit 1)
+	@echo "✓ Skill symlinks valid"
 
 $(BIN_DIR)/sabx: $(SOURCES) go.mod go.sum
 	@mkdir -p $(BIN_DIR)
