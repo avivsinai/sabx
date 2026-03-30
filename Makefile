@@ -22,7 +22,7 @@ LDFLAGS := -s -w \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: build check-skills
+.PHONY: build check-skills release-skills
 build: $(BIN_DIR)/sabx
 
 # Skill integrity: skills/ is canonical, .claude/skills/ and .agents/skills/ are symlinks
@@ -72,3 +72,7 @@ snapshot:
 .PHONY: smoke
 smoke:
 	$(GO) test ./test/e2e -run TestSmokeAgainstSABContainer -count=1
+
+release-skills:
+	@test -n "$(RELEASE_VERSION)" || (echo "usage: make release-skills RELEASE_VERSION=0.1.4" && exit 1)
+	./scripts/release-skills.sh "$(RELEASE_VERSION)"
