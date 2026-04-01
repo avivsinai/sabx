@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-04-01
+
+### Changed
+
+- Simplified the GitHub release workflow to rely on `actions/setup-go`'s built-in caching instead of a separate cache step, reducing failure modes during tag reruns.
+
 ## [0.1.5] - 2026-04-01
 
 ### Fixed
