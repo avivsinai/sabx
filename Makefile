@@ -17,6 +17,9 @@ VERSION ?= $(shell \
 )
 COMMIT ?= $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+CODESIGN ?= codesign
+CODESIGN_IDENTITY ?= -
+CODESIGN_IDENTIFIER ?= io.github.avivsinai.sabx
 LDFLAGS := -s -w \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Version=$(VERSION) \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
@@ -38,6 +41,9 @@ check-skills:
 $(BIN_DIR)/sabx: $(SOURCES) go.mod go.sum
 	@mkdir -p $(BIN_DIR)
 	$(GO) build -trimpath -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/sabx $(CMD)
+	@if [ "$$(uname -s)" = "Darwin" ]; then \
+		$(CODESIGN) --force --sign $(CODESIGN_IDENTITY) --identifier $(CODESIGN_IDENTIFIER) $@; \
+	fi
 
 .PHONY: tidy
 tidy:

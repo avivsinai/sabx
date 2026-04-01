@@ -27,6 +27,9 @@ builds:
       - -X github.com/avivsinai/sabx/internal/buildinfo.Date={{ .Date }}
     flags:
       - -trimpath
+    hooks:
+      post:
+        - sh -ceu 'if [ "$2" = darwin ] && [ "$(uname -s)" = Darwin ]; then codesign --force --sign - --identifier io.github.avivsinai.sabx "$1"; fi' _ "{{ .Path }}" "{{ .Os }}"
 
 archives:
   - id: sabx-archive
@@ -61,6 +64,12 @@ homebrew_casks:
     binaries:
       - sabx
     skip_upload: true
+    hooks:
+      post:
+        install: |
+          if OS.mac?
+            system_command "/usr/bin/codesign", args: ["--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", "#{staged_path}/sabx"]
+          end
     commit_author:
       name: sabx automation
       email: releases@sabx.dev

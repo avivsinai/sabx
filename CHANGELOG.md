@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-04-01
+
+### Fixed
+
+- Serialized macOS keychain reads and writes behind an inter-process lock to prevent prompt storms when multiple `sabx` processes access the same API key concurrently.
+- Added stable release metadata verification so skill/plugin versions must match the release tag before publishing binaries or skills.
+
+### Changed
+
+- Ad-hoc signed local macOS builds and Homebrew-installed binaries with the stable identifier `io.github.avivsinai.sabx` so Keychain approvals survive upgrades.
+
 ## [0.1.2] - 2026-02-21
 
 ### Features

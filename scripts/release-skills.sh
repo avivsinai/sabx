@@ -67,6 +67,8 @@ PY
 git add skills/*/SKILL.md .claude-plugin/plugin.json
 [ -f .codex-plugin/plugin.json ] && git add .codex-plugin/plugin.json
 
+./scripts/check-release-version.sh "$version"
+
 if git diff --cached --quiet; then
   echo "No version changes needed — tagging current HEAD"
 else

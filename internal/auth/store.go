@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/99designs/keyring"
 )
@@ -21,6 +23,11 @@ const (
 	envBackend       = "SABX_KEYRING_BACKEND"
 	envFileDir       = "SABX_KEYRING_FILE_DIR"
 )
+
+const keyringTimeout = 60 * time.Second
+
+// ErrKeyringTimeout indicates a keyring operation timed out.
+var ErrKeyringTimeout = errors.New("keyring operation timed out")
 
 // ErrNotFound is returned when the requested credential cannot be located.
 var ErrNotFound = os.ErrNotExist
@@ -117,10 +124,14 @@ func (s *Store) Save(profile, baseURL, apiKey string) error {
 		return errors.New("secret store not initialized")
 	}
 
-	return s.kr.Set(keyring.Item{
-		Key:   keyFor(profile, baseURL),
-		Data:  []byte(apiKey),
-		Label: fmt.Sprintf("sabx profile %s API key", sanitize(profile)),
+	return s.withTimeout(func() error {
+		return withKeychainLock(func() error {
+			return s.kr.Set(keyring.Item{
+				Key:   keyFor(profile, baseURL),
+				Data:  []byte(apiKey),
+				Label: fmt.Sprintf("sabx profile %s API key", sanitize(profile)),
+			})
+		})
 	})
 }
 
@@ -130,7 +141,14 @@ func (s *Store) Load(profile, baseURL string) (string, error) {
 		return "", errors.New("secret store not initialized")
 	}
 
-	item, err := s.kr.Get(keyFor(profile, baseURL))
+	var item keyring.Item
+	err := s.withTimeout(func() error {
+		return withKeychainLock(func() error {
+			var getErr error
+			item, getErr = s.kr.Get(keyFor(profile, baseURL))
+			return getErr
+		})
+	})
 	if err != nil {
 		if errors.Is(err, keyring.ErrKeyNotFound) {
 			return "", ErrNotFound
@@ -146,7 +164,11 @@ func (s *Store) Delete(profile, baseURL string) error {
 		return errors.New("secret store not initialized")
 	}
 
-	err := s.kr.Remove(keyFor(profile, baseURL))
+	err := s.withTimeout(func() error {
+		return withKeychainLock(func() error {
+			return s.kr.Remove(keyFor(profile, baseURL))
+		})
+	})
 	if errors.Is(err, keyring.ErrKeyNotFound) {
 		return nil
 	}
@@ -185,6 +207,23 @@ func DeleteAPIKey(profile, baseURL string, opts ...Option) error {
 		return err
 	}
 	return store.Delete(profile, baseURL)
+}
+
+func (s *Store) withTimeout(fn func() error) error {
+	ch := make(chan error, 1)
+	go func() {
+		ch <- fn()
+	}()
+
+	ctx, cancel := context.WithTimeout(context.Background(), keyringTimeout)
+	defer cancel()
+
+	select {
+	case err := <-ch:
+		return err
+	case <-ctx.Done():
+		return ErrKeyringTimeout
+	}
 }
 
 func keyFor(profile, baseURL string) string {
