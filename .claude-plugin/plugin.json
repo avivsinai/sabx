@@ -1,6 +1,6 @@
 {
   "name": "sabx",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "SABnzbd CLI - control downloads, queues, RSS feeds, and automation via terminal",
   "author": {
     "name": "Aviv Sinai",
