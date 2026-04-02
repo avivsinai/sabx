@@ -55,7 +55,7 @@ jobs:
             SKILL_VERSION=$(grep -oP 'version:\s*\K[0-9A-Za-z.+-]+' "$dir/SKILL.md" || true)
             if [ -n "$SKILL_VERSION" ] && [ "$SKILL_VERSION" != "$VERSION" ]; then
               echo "ERROR: $SKILL SKILL.md version ($SKILL_VERSION) != tag version ($VERSION)"
-              echo "  Run scripts/release-skills.sh $VERSION first"
+              echo "  Prepare the release with scripts/release.sh $VERSION first"
               FAILED=1
               continue
             fi

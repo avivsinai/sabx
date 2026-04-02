@@ -10,10 +10,7 @@ printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'
 }
 
 python3 - "$version" <<'PY'
-import json
-import pathlib
-import re
-import sys
+import json, pathlib, re, sys
 
 version = sys.argv[1]
 mismatches = []
@@ -24,13 +21,11 @@ for path in sorted(pathlib.Path("skills").glob("*/SKILL.md")):
     if not match:
         mismatches.append((str(path), "<missing frontmatter>"))
         continue
-
     frontmatter = match.group(1)
     version_match = re.search(r"(?m)^version:\s*([0-9A-Za-z.+-]+)\s*$", frontmatter)
     if not version_match:
         mismatches.append((str(path), "<missing version>"))
         continue
-
     actual = version_match.group(1)
     if actual != version:
         mismatches.append((str(path), actual))
@@ -39,10 +34,18 @@ for path in [".claude-plugin/plugin.json", ".codex-plugin/plugin.json"]:
     pp = pathlib.Path(path)
     if not pp.exists():
         continue
-
     actual = json.loads(pp.read_text()).get("version")
     if actual != version:
         mismatches.append((path, actual))
+
+changelog = pathlib.Path("CHANGELOG.md")
+if not changelog.exists():
+    mismatches.append(("CHANGELOG.md", "<missing>"))
+else:
+    text = changelog.read_text()
+    pattern = rf"(?m)^## \[{re.escape(version)}\] - \d{{4}}-\d{{2}}-\d{{2}}$"
+    if not re.search(pattern, text):
+        mismatches.append(("CHANGELOG.md", "<missing release heading>"))
 
 if mismatches:
     print(f"release metadata version mismatch for {version}:")
