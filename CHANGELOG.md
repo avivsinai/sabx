@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-04-02
 ### Fixed
 
 - Wrote generated GitHub release notes to the runner temp directory so GoReleaser can publish without modifying the checked-in `RELEASE_NOTES.md`.
+
 
 ## [0.1.9] - 2026-04-02
 ### Changed
