@@ -5,7 +5,7 @@ This project follows **Semantic Versioning (SemVer)** using annotated git tags o
 ## Release prerequisites
 
 1. Ensure `main` is green in CI and contains the change set you want to ship.
-2. If you want a human-written summary in the release archives, update `RELEASE_NOTES.md`.
+2. Update `CHANGELOG.md` under `Unreleased`.
 3. Run the full test matrix locally:
    ```bash
    make tidy
@@ -16,24 +16,21 @@ This project follows **Semantic Versioning (SemVer)** using annotated git tags o
 
 ## Creating a release
 
-1. Use the release helper to bump skill metadata, validate release versions, and create the local release tag:
+1. Use the release helper from `main`:
    ```bash
-   ./scripts/release-skills.sh X.Y.Z
+   ./scripts/release.sh X.Y.Z
    ```
-   The helper creates the annotated `vX.Y.Z` tag locally.
-2. GitHub Actions will automatically:
-   - run lint/unit/e2e smoke tests on Linux,
-   - verify release metadata matches the tag before publishing,
+   The helper verifies the worktree is clean and at `origin/main`, creates `release/vX.Y.Z`, moves `CHANGELOG.md` into a dated release entry, bumps skill/plugin metadata, runs verification, commits `chore(release): vX.Y.Z`, pushes the branch, opens a PR, and enables squash auto-merge by default.
+2. Let the release PR merge. Do not create or push tags manually.
+3. After the release PR merges, GitHub Actions will automatically:
+   - validate the merged release commit,
+   - create `vX.Y.Z` only after verification succeeds,
    - publish release artifacts via GoReleaser,
-   - publish archives, checksums, Docker images, and (optionally) Homebrew/Scoop manifests.
-3. Push the release commit and tag:
-   ```bash
-   git push origin HEAD
-   git push origin vX.Y.Z
-   ```
+   - publish archives, checksums, Docker images, and (optionally) Homebrew/Scoop manifests,
+   - publish skills from the CI-created tag.
 4. On macOS, the Homebrew cask install hook re-signs the installed `sabx` binary with a stable reverse-DNS identifier so Keychain prompts stay associated across upgrades.
 
-To retry or cut a release from an existing commit, use the `Release` workflow’s **Run workflow** button and supply the tag.
+To retry an existing release, use the `Release` workflow’s **Run workflow** button and supply an existing tag. It is not a manual tag creation path.
 
 ## Snapshot builds
 
@@ -43,5 +40,5 @@ metadata in the binary via ldflags and include the short commit in their version
 ## Branch policy
 
 - `main` is always releasable. Feature branches must land via pull requests with green CI.
-- Breaking changes require a MAJOR bump and should be called out in `RELEASE_NOTES.md` when you want them in the archive metadata.
+- Breaking changes require a MAJOR bump and should be called out in `CHANGELOG.md`.
 - Patch releases (`vX.Y.Z+1`) are for bug fixes; minor releases (`vX.Y+1.0`) are for backwards compatible features.

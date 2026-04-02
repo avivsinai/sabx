@@ -25,7 +25,7 @@ LDFLAGS := -s -w \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Commit=$(COMMIT) \
 	-X github.com/avivsinai/sabx/internal/buildinfo.Date=$(BUILD_DATE)
 
-.PHONY: build check-skills release release-skills
+.PHONY: build check-skills release
 build: $(BIN_DIR)/sabx
 
 # Skill integrity: skills/ is canonical, .claude/skills/ and .agents/skills/ are symlinks
@@ -78,10 +78,6 @@ snapshot:
 .PHONY: smoke
 smoke:
 	$(GO) test ./test/e2e -run TestSmokeAgainstSABContainer -count=1
-
-release-skills:
-	@test -n "$(RELEASE_VERSION)" || (echo "usage: make release-skills RELEASE_VERSION=0.1.4 [RELEASE_DATE=YYYY-MM-DD] [RELEASE_SKIP_VERIFY=1] [RELEASE_ALLOW_EMPTY=1] [RELEASE_NO_AUTO_MERGE=1]" && exit 1)
-	./scripts/release-skills.sh "$(RELEASE_VERSION)" $(if $(RELEASE_DATE),--date $(RELEASE_DATE),) $(if $(RELEASE_SKIP_VERIFY),--skip-verify,) $(if $(RELEASE_ALLOW_EMPTY),--allow-empty,) $(if $(RELEASE_NO_AUTO_MERGE),--no-auto-merge,)
 
 release:
 	@test -n "$(RELEASE_VERSION)" || (echo "usage: make release RELEASE_VERSION=0.1.4 [RELEASE_DATE=YYYY-MM-DD] [RELEASE_SKIP_VERIFY=1] [RELEASE_ALLOW_EMPTY=1] [RELEASE_NO_AUTO_MERGE=1]" && exit 1)
