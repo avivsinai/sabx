@@ -24,4 +24,4 @@ This release completes the SABnzbd API parity initiative: every published endpoi
 ## Next Steps
 - Wire the smoke harness into CI once a SABnzbd Docker service is available.
 - Review captured fixtures and promote stable subsets into regression tests.
-- Tag the release and share parity highlights with the community.
+- Ship the release PR and share parity highlights with the community.
