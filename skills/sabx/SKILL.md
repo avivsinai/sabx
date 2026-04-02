@@ -1,6 +1,6 @@
 ---
 name: sabx
-version: 0.1.8
+version: 0.1.9
 description: Control SABnzbd download manager via CLI. Use when users need to check download queue/history, add NZBs, manage priorities, control speed limits, pause/resume downloads, configure RSS feeds, run scheduled tasks, or automate Usenet workflows. Triggers include "sabnzbd", "sabx", "downloads", "nzb", "usenet", "download queue", "download status".
 metadata:
   short-description: SABnzbd CLI for download automation
