@@ -34,7 +34,7 @@ make setup # optional helper script when available
 
 ## Release Engineering
 - Packaging (Homebrew, Scoop, winget, Docker) will live under `tools/` and GitHub Actions workflows. Contributions here should include dry-run logs and documentation updates in the README.
-- Tag releases `vX.Y.Z` following semver.
+- Release versions use `vX.Y.Z` tags created by CI after the merged release PR verifies.
 
 ## Code of Conduct
 All interactions are governed by the [Contributor Covenant](CODE_OF_CONDUCT.md). Report unacceptable behavior to the maintainers listed in SECURITY.md.
