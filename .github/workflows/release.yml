@@ -10,11 +10,11 @@ on:
         description: 'Existing tag to (re)release (e.g., v1.2.3)'
         required: true
         type: string
-
-permissions:
-  contents: write
-  id-token: write
-  packages: write
+      skip-skill-publish:
+        description: 'Skip skill publishing (GoReleaser always runs on dispatch)'
+        required: false
+        type: boolean
+        default: true
 
 # Keep workflow_dispatch reruns serialized per tag while letting distinct release commits run independently.
 concurrency:
@@ -26,6 +26,8 @@ jobs:
     if: "${{ github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'chore(release): v') }}"
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      contents: read
     outputs:
       tag: ${{ steps.prepare.outputs.tag }}
       version: ${{ steps.prepare.outputs.version }}
@@ -34,7 +36,7 @@ jobs:
       prerelease: ${{ steps.prepare.outputs.prerelease }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
       - name: Resolve release metadata
@@ -68,6 +70,7 @@ jobs:
                 echo "::error::Tag ${tag} does not exist. workflow_dispatch is only for rerunning an existing release."
                 exit 1
               fi
+              git checkout --detach "$tag"
               version="${tag#v}"
               ./scripts/check-release-version.sh "$version"
               release_ref="$tag"
@@ -117,14 +120,16 @@ jobs:
     if: needs.prepare.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    permissions:
+      contents: read
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.release_ref }}
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           check-latest: true
@@ -154,24 +159,28 @@ jobs:
     needs: [prepare, verify]
     if: needs.prepare.result == 'success' && needs.verify.result == 'success'
     timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6.0.2
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           fetch-depth: 0
           ref: ${{ needs.prepare.outputs.release_ref }}
 
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6
         with:
           go-version-file: 'go.mod'
           check-latest: true
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -225,7 +234,7 @@ jobs:
           PY
 
       - name: GoReleaser
-        uses: goreleaser/goreleaser-action@v7
+        uses: goreleaser/goreleaser-action@ec59f474b9834571250b370d4735c50f8e2d1e29 # v7
         with:
           distribution: goreleaser
           version: '~> v2'
@@ -235,8 +244,105 @@ jobs:
 
       - name: Upload dist artifacts
         if: always()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7
         with:
           name: release-artifacts
           path: dist/
           retention-days: 7
+
+  skill-publish:
+    name: Publish Skills
+    needs: [prepare, publish]
+    if: needs.publish.result == 'success' && (github.event_name == 'push' || inputs.skip-skill-publish != true)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ needs.prepare.outputs.release_ref }}
+
+      - name: Set up Node
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '20'
+
+      - name: Install skild
+        run: npm install -g skild
+
+      - name: Configure skild auth
+        run: |
+          mkdir -p ~/.skild
+          echo '${{ secrets.SKILD_AUTH_JSON }}' > ~/.skild/registry-auth.json
+
+      - name: Verify release metadata
+        run: ./scripts/check-release-version.sh "${{ needs.prepare.outputs.version }}"
+
+      - name: Publish skills
+        run: |
+          TAG_VERSION="${{ needs.prepare.outputs.version }}"
+
+          echo "$TAG_VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || {
+            echo "ERROR: version '$TAG_VERSION' is not semver"
+            exit 1
+          }
+
+          FAILED=0
+
+          for dir in skills/*/; do
+            [ -f "$dir/SKILL.md" ] || continue
+            SKILL=$(basename "$dir")
+            VERSION="${TAG_VERSION}"
+
+            SKILL_VERSION=$(grep -oP 'version:\s*\K[0-9A-Za-z.+-]+' "$dir/SKILL.md" || true)
+            if [ -n "$SKILL_VERSION" ] && [ "$SKILL_VERSION" != "$VERSION" ]; then
+              echo "ERROR: $SKILL SKILL.md version ($SKILL_VERSION) != tag version ($VERSION)"
+              echo "  Prepare the release with scripts/release.sh $VERSION first"
+              FAILED=1
+              continue
+            fi
+
+            echo "Publishing $SKILL version $VERSION"
+
+            ALIAS_ARGS=()
+            if [ ${#SKILL} -ge 3 ] && [ ${#SKILL} -le 64 ]; then
+              ALIAS_ARGS=(--alias "$SKILL")
+            else
+              echo "Warning: Skipping alias for $SKILL: length ${#SKILL} outside 3..64"
+            fi
+
+            if OUTPUT=$(npx skild publish \
+              --dir "$dir" \
+              "${ALIAS_ARGS[@]}" \
+              --skill-version "$VERSION" 2>&1); then
+              echo "$OUTPUT"
+              echo "Published $SKILL version $VERSION"
+            elif echo "$OUTPUT" | grep -q "Version already exists"; then
+              echo "$OUTPUT"
+              echo "Warning: $SKILL version $VERSION already published -- skipping"
+            elif echo "$OUTPUT" | grep -q "Alias already in use"; then
+              echo "$OUTPUT"
+              echo "Warning: Alias '$SKILL' taken -- retrying without alias..."
+              if OUTPUT2=$(npx skild publish \
+                --dir "$dir" \
+                --skill-version "$VERSION" 2>&1); then
+                echo "$OUTPUT2"
+                echo "Published $SKILL version $VERSION (without alias)"
+              elif echo "$OUTPUT2" | grep -q "Version already exists"; then
+                echo "$OUTPUT2"
+                echo "Warning: $SKILL version $VERSION already published on retry -- skipping"
+              else
+                echo "Publish failed for $SKILL (even without alias)"
+                echo "$OUTPUT2"
+                FAILED=1
+              fi
+            else
+              echo "Publish failed for $SKILL"
+              echo "$OUTPUT"
+              FAILED=1
+            fi
+          done
+
+          exit $FAILED
