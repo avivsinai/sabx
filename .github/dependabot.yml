@@ -10,6 +10,9 @@ updates:
           - minor
           - patch
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
 
   - package-ecosystem: github-actions
     directory: /
@@ -21,3 +24,6 @@ updates:
           - minor
           - patch
     open-pull-requests-limit: 10
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
