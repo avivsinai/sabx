@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ### Fixed
+- Documented only live install paths in the README (`go install`, GitHub release archives, Docker, and source). Removed Homebrew, Scoop, and WinGet claims that are not published.
 - Consolidated skill publishing into the release workflow so it no longer depends on tag-push events that `GITHUB_TOKEN` cannot trigger.
 - Pinned all GitHub Actions to commit SHAs across every workflow for supply-chain safety.
 - Added missing `timeout-minutes` and `concurrency` blocks to all workflows.

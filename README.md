@@ -16,18 +16,33 @@
 - **Agent-friendly**: deterministic output, idempotent commands, and profile-aware configuration ideal for CI/CD or LLM agents.
 
 ## Installation
-```bash
-# Go 1.24+
-go install github.com/avivsinai/sabx/cmd/sabx@latest
 
-# Build from source
+### Go
+
+```bash
+# Go 1.25+
+go install github.com/avivsinai/sabx/cmd/sabx@latest
+```
+
+### Pre-built binaries
+
+Tagged releases publish archives for Linux, macOS, and Windows on the [GitHub Releases](https://github.com/avivsinai/sabx/releases/latest) page.
+
+### Docker
+
+```bash
+docker pull ghcr.io/avivsinai/sabx:latest
+docker run --rm ghcr.io/avivsinai/sabx:latest --help
+```
+
+### From source
+
+```bash
 git clone https://github.com/avivsinai/sabx.git
 cd sabx
 go build ./cmd/sabx
 ./sabx --help
 ```
-
-Pre-built archives, Homebrew, Scoop, winget manifests, and multi-arch Docker images are produced via [GoReleaser](tools/goreleaser.yaml) on tagged releases.
 
 ## Quickstart
 ```bash
