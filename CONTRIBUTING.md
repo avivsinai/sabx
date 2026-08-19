@@ -33,7 +33,7 @@ make setup # optional helper script when available
   - [ ] Linked issue / discussion
 
 ## Release Engineering
-- Packaging (Homebrew, Scoop, winget, Docker) will live under `tools/` and GitHub Actions workflows. Contributions here should include dry-run logs and documentation updates in the README.
+- Homebrew publishes `Formula/sabx.rb` to [`avivsinai/homebrew-tap`](https://github.com/avivsinai/homebrew-tap) from `tools/goreleaser.yaml`. Keep archive names and the `brews` block aligned with that tap.
 - Release versions use `vX.Y.Z` tags created by CI after the merged release PR verifies.
 
 ## Code of Conduct

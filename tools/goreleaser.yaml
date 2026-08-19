@@ -51,28 +51,30 @@ archives:
       - README.md
       - RELEASE_NOTES.md
 
-homebrew_casks:
+# Formula under Formula/, matching bitbucket-cli / jk / amq and avivsinai/homebrew-tap.
+# homebrew_casks would publish a Cask under Casks/, which this tap does not use.
+brews:
   - name: sabx
+    ids: [sabx-archive]
     repository:
       owner: avivsinai
       name: homebrew-tap
-      branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     directory: Formula
-    description: Full-fidelity SABnzbd CLI
     homepage: https://github.com/avivsinai/sabx
+    description: Full-fidelity SABnzbd CLI
     license: MIT
-    binaries:
-      - sabx
-    skip_upload: true
-    hooks:
-      post:
-        install: |
-          if OS.mac?
-            system_command "/usr/bin/codesign", args: ["--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", "#{staged_path}/sabx"]
-          end
     commit_author:
-      name: sabx automation
-      email: releases@sabx.dev
+      name: github-actions[bot]
+      email: github-actions[bot]@users.noreply.github.com
+    install: |
+      bin.install "sabx"
+    extra_install: |
+      if OS.mac?
+        system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", bin/"sabx"
+      end
+    test: |
+      system "#{bin}/sabx", "--version"
 
 scoops:
   - name: sabx
@@ -158,3 +160,18 @@ release:
     ---
 
     **Full changelog**: https://github.com/sabx/sabx/compare/{{ .PreviousTag }}...{{ .Tag }}
+
+    ### Homebrew (macOS/Linux)
+    ```bash
+    brew install avivsinai/tap/sabx
+    ```
+
+    ### Go Install
+    ```bash
+    go install github.com/avivsinai/sabx/cmd/sabx@{{ .Tag }}
+    ```
+
+    ### Docker
+    ```bash
+    docker pull ghcr.io/avivsinai/sabx:{{ .Tag }}
+    ```
