@@ -26,9 +26,19 @@ This project follows **Semantic Versioning (SemVer)** using annotated git tags o
    - validate the merged release commit,
    - create `vX.Y.Z` only after verification succeeds,
    - publish release artifacts via GoReleaser,
-   - publish archives, checksums, Docker images, and (optionally) Homebrew/Scoop manifests,
+   - publish archives, checksums, and Docker images,
+   - push `Formula/sabx.rb` to [`avivsinai/homebrew-tap`](https://github.com/avivsinai/homebrew-tap) via GoReleaser `brews` (same path as `bitbucket-cli`, `jk`, and `amq`),
    - publish skills from the CI-created tag.
-4. On macOS, the Homebrew cask install hook re-signs the installed `sabx` binary with a stable reverse-DNS identifier so Keychain prompts stay associated across upgrades.
+4. The release workflow needs `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `avivsinai/homebrew-tap`. That is the same secret used by the other CLI release workflows.
+5. On macOS, the Homebrew formula `extra_install` hook re-signs the installed `sabx` binary with `io.github.avivsinai.sabx` so Keychain prompts stay associated across upgrades.
+
+Users install with:
+
+```bash
+brew install avivsinai/tap/sabx
+```
+
+The tap formula GoReleaser publishes is `Formula/sabx.rb`: class `Sabx`, `desc "Full-fidelity SABnzbd CLI"`, `bin.install "sabx"`, and `test` via `sabx --version`. Archive names stay `sabx_<version>_<os>_<arch>.tar.gz` (`x86_64` / `arm64`). The initial v0.1.11 formula lives in [homebrew-tap#17](https://github.com/avivsinai/homebrew-tap/pull/17); later tagged releases overwrite that file.
 
 To retry an existing release, use the `Release` workflow’s **Run workflow** button and supply an existing tag. It is not a manual tag creation path.
 

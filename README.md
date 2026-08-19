@@ -17,6 +17,12 @@
 
 ## Installation
 
+### Homebrew (macOS/Linux)
+
+```bash
+brew install avivsinai/tap/sabx
+```
+
 ### Go
 
 ```bash
