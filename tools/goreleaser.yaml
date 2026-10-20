@@ -25,40 +25,19 @@ builds:
       - -X github.com/avivsinai/sabx/internal/buildinfo.Version={{ .Version }}
       - -X github.com/avivsinai/sabx/internal/buildinfo.Commit={{ .Commit }}
       - -X github.com/avivsinai/sabx/internal/buildinfo.Date={{ .Date }}
+    # The macOS Keychain backend of github.com/99designs/keyring needs cgo, so
+    # darwin builds use cgo and run on a macOS host (release.yml). Linux and
+    # Windows stay static cross builds.
+    env:
+      - CGO_ENABLED={{- if eq .Os "darwin" }}1{{- else }}0{{- end }}
     flags:
       - -trimpath
     hooks:
       post:
-        - sh -ceu 'if [ "$2" = darwin ] && [ "$(uname -s)" = Darwin ]; then codesign --force --sign - --identifier io.github.avivsinai.sabx "$1"; fi' _ "{{ .Path }}" "{{ .Os }}"
-
-# Release builds sign the darwin binaries with our Developer ID and notarize
-# them (quill, so this runs on the Linux release runner). release.yml sets
-# SABX_MACOS_SIGN=true only when all APPLE_* signing secrets are present.
-#
-# Keychain matches each caller by a partition ID. Ad-hoc code gets
-# `cdhash:<hash>`, which changes on every build, so each upgrade prompts again.
-# Developer ID code gets `teamid:<TEAM_ID>`, which is stable, so one "Always
-# Allow" survives upgrades. quill sets the signing identifier to the binary
-# name, `sabx`; keep the binary name and the team, or every user approves again.
-notarize:
-  macos:
-    - enabled: '{{ eq (envOrDefault "SABX_MACOS_SIGN" "") "true" }}'
-      ids: [sabx]
-      sign:
-        # quill reads and base64-decodes these variables itself, so the
-        # secret bytes never pass through the template engine.
-        certificate: "env:APPLE_DEVELOPER_ID_P12_BASE64"
-        password: "{{ .Env.APPLE_DEVELOPER_ID_P12_PASSWORD }}"
-      notarize:
-        issuer_id: "{{ .Env.APPLE_NOTARY_ISSUER_ID }}"
-        key_id: "{{ .Env.APPLE_NOTARY_KEY_ID }}"
-        key: "env:APPLE_NOTARY_KEY_P8_BASE64"
-        # wait: true makes the release fail when Apple rejects a binary (the
-        # error carries Apple's log) or the wait times out. Without it the
-        # release publishes binaries that are not notarized.
-        wait: true
-        # GoReleaser's maximum: Apple rejects longer-lived API tokens.
-        timeout: 20m
+        # Release builds: Developer ID signature and notarization. Other
+        # builds: ad-hoc signature. Keep the identifier and the team: a change
+        # makes every user approve Keychain access again.
+        - cmd: ./scripts/codesign-macos.sh "{{ .Path }}" "io.github.avivsinai.sabx" "{{ .Os }}"
 
 archives:
   - id: sabx-archive
@@ -100,12 +79,14 @@ brews:
       bin.install "sabx"
     # Re-sign ad-hoc only when the installed binary has no team: an ad-hoc
     # re-sign would replace a Developer ID signature. The check reads the
-    # installed binary, so it holds even when release signing was skipped.
+    # installed binary, so it holds even when release signing was skipped. The
+    # re-sign keeps the identifier and pinned DR of scripts/codesign-macos.sh.
     extra_install: |
       if OS.mac?
         signature = Utils.popen_read("/usr/bin/codesign", "-dv", bin/"sabx", err: :out)
         unless signature.match?(/^TeamIdentifier=(?!not set$)\S+$/)
-          system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", bin/"sabx"
+          system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx",
+                 "-r=designated => identifier \"io.github.avivsinai.sabx\"", bin/"sabx"
         end
       end
     test: |
@@ -135,19 +116,6 @@ winget:
     commit_author:
       name: sabx automation
       email: releases@sabx.dev
-
-dockers_v2:
-  - id: sabx
-    ids: [sabx]
-    images:
-      - ghcr.io/avivsinai/sabx
-    tags:
-      - "{{ .Tag }}"
-      - latest
-    dockerfile: Dockerfile.release
-    platforms:
-      - linux/amd64
-      - linux/arm64
 
 checksum:
   name_template: checksums.txt

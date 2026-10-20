@@ -153,17 +153,20 @@ jobs:
       - name: Check embedded version
         run: ./bin/sabx version | grep -Eq "^sabx ${{ needs.prepare.outputs.tag }}( |$)"
 
+  # GoReleaser runs on macOS: the darwin binaries need cgo for the Keychain
+  # backend of github.com/99designs/keyring, and codesign/notarytool exist only
+  # on macOS. Linux and Windows binaries are static cross builds. GoReleaser OSS
+  # cannot split one release across runners, so the GHCR image is built in the
+  # docker job below (macOS runners have no Docker).
   publish:
     name: Publish Release
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     needs: [prepare, verify]
     if: needs.prepare.result == 'success' && needs.verify.result == 'success'
     # Notarization waits up to 20 minutes for each of the two darwin binaries.
     timeout-minutes: 75
     permissions:
       contents: write
-      id-token: write
-      packages: write
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -176,16 +179,6 @@ jobs:
         with:
           go-version-file: 'go.mod'
           check-latest: true
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
-
-      - name: Login to GHCR
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create release tag after verification
         shell: bash
@@ -236,29 +229,26 @@ jobs:
 
       # A Developer ID signature gives the binary a stable Keychain partition
       # ID (teamid:), so one "Always Allow" survives upgrades. Ad-hoc builds
-      # get a new cdhash: partition per release and prompt again. GoReleaser
-      # signs and notarizes with quill (notarize.macos in tools/goreleaser.yaml)
-      # when this step sets enabled=true.
-      - name: Check macOS signing secrets
-        id: macos_signing
+      # get a new cdhash: partition per release and prompt again
+      # (see scripts/codesign-macos.sh).
+      - name: Configure macOS signing
         shell: bash
         env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
-          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
-          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
         run: |
           set -euo pipefail
-          names=(APPLE_TEAM_ID APPLE_DEVELOPER_ID_P12_BASE64 APPLE_DEVELOPER_ID_P12_PASSWORD APPLE_NOTARY_ISSUER_ID APPLE_NOTARY_KEY_ID APPLE_NOTARY_KEY_P8_BASE64)
+          names=(P12_BASE64 P12_PASSWORD TEAM_ID NOTARY_ISSUER_ID NOTARY_KEY_ID NOTARY_KEY_P8_BASE64)
           present=0
           for name in "${names[@]}"; do
-            [[ -n "${!name:-}" ]] && present=$((present + 1))
+            [[ -n "${!name}" ]] && present=$((present + 1))
           done
           if (( present == 0 )); then
             echo "::warning::macOS binaries are signed ad-hoc: the APPLE_* signing secrets are not configured, so users get a Keychain prompt after each upgrade."
-            echo "enabled=false" >>"$GITHUB_OUTPUT"
             exit 0
           fi
           if (( present != ${#names[@]} )); then
@@ -266,27 +256,37 @@ jobs:
             exit 1
           fi
 
-          # quill decodes these values with a strict base64 decoder.
-          for name in APPLE_DEVELOPER_ID_P12_BASE64 APPLE_NOTARY_KEY_P8_BASE64; do
-            if [[ "${!name:-}" =~ [[:space:]] ]]; then
-              echo "::error::${name} must be base64 without line breaks."
-              exit 1
-            fi
-          done
+          keychain="$RUNNER_TEMP/sabx-signing.keychain-db"
+          keychain_password="$(openssl rand -hex 24)"
+          security create-keychain -p "$keychain_password" "$keychain"
+          # Publish the path first so the cleanup step removes the keychain
+          # even when a later command here fails.
+          echo "SABX_MACOS_KEYCHAIN=$keychain" >>"$GITHUB_ENV"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$keychain_password" "$keychain"
+          printf '%s' "$P12_BASE64" | base64 --decode >"$RUNNER_TEMP/developer-id.p12"
+          security import "$RUNNER_TEMP/developer-id.p12" -k "$keychain" -P "$P12_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/developer-id.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$keychain_password" "$keychain" >/dev/null
+          # Put the signing keychain first and keep the existing search list.
+          # shellcheck disable=SC2046 # one word per keychain path
+          security list-keychains -d user -s "$keychain" $(security list-keychains -d user | tr -d '"')
 
-          # quill writes the team of the certificate into the signature. Check that
-          # team before the release builds anything. Keychain Access exports .p12 files
-          # with ciphers that OpenSSL 3 reads only with -legacy.
-          read_certs() {
-            printf '%s' "$APPLE_DEVELOPER_ID_P12_BASE64" | base64 --decode \
-              | openssl pkcs12 -nokeys -clcerts -passin env:APPLE_DEVELOPER_ID_P12_PASSWORD "$@"
-          }
-          certs="$(read_certs 2>/dev/null || read_certs -legacy)"
-          if ! awk -v team="($APPLE_TEAM_ID)" '/^subject=.*Developer ID Application: / && index($0, team) { found = 1 } END { exit !found }' <<<"$certs"; then
-            echo "::error::APPLE_DEVELOPER_ID_P12_BASE64 has no 'Developer ID Application' certificate for APPLE_TEAM_ID."
+          # The SHA-1 picks one identity even if the .p12 holds a renewed and
+          # an older certificate. -v lists only identities with a trusted
+          # chain, so the .p12 must include the Developer ID intermediate.
+          identity_sha="$(security find-identity -v -p codesigning "$keychain" \
+            | awk -v team="($TEAM_ID)" '/Developer ID Application: / && index($0, team) { print $2; exit }')"
+          if [[ -z "$identity_sha" ]]; then
+            echo "::error::APPLE_DEVELOPER_ID_P12_BASE64 has no trusted 'Developer ID Application' identity for APPLE_TEAM_ID."
             exit 1
           fi
-          echo "enabled=true" >>"$GITHUB_OUTPUT"
+
+          printf '%s' "$NOTARY_KEY_P8_BASE64" | base64 --decode >"$RUNNER_TEMP/notary-key.p8"
+          {
+            echo "SABX_MACOS_SIGN_IDENTITY=$identity_sha"
+            echo "SABX_NOTARY_KEY_PATH=$RUNNER_TEMP/notary-key.p8"
+          } >>"$GITHUB_ENV"
 
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
@@ -297,12 +297,20 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
-          SABX_MACOS_SIGN: ${{ steps.macos_signing.outputs.enabled }}
-          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
-          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
-          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
-          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
-          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+          # scripts/codesign-macos.sh signs with the Developer ID when
+          # SABX_MACOS_TEAM_ID is set; the step above exports the rest.
+          SABX_MACOS_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          SABX_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          SABX_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+
+      - name: Remove macOS signing material
+        if: always()
+        shell: bash
+        run: |
+          if [[ -n "${SABX_MACOS_KEYCHAIN:-}" ]]; then
+            security delete-keychain "$SABX_MACOS_KEYCHAIN" || true
+          fi
+          rm -f "$RUNNER_TEMP/developer-id.p12" "$RUNNER_TEMP/notary-key.p8"
 
       - name: Upload dist artifacts
         if: always()
@@ -311,6 +319,71 @@ jobs:
           name: release-artifacts
           path: dist/
           retention-days: 7
+
+  # Builds the GHCR image from the linux binaries of the publish job, so the
+  # image and the release archives hold the same bytes.
+  docker:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+    needs: [prepare, publish]
+    if: needs.publish.result == 'success'
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.prepare.outputs.release_ref }}
+
+      - name: Download dist artifacts
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-artifacts
+          path: dist
+
+      # Dockerfile.release copies linux/<arch>/sabx. Artifact upload drops
+      # the executable bit, so set it again.
+      - name: Stage linux binaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          count=0
+          while read -r arch path; do
+            install -D -m 0755 "$path" "docker-context/linux/${arch}/sabx"
+            count=$((count + 1))
+          done < <(jq -r '.[] | select(.type == "Binary" and .goos == "linux") | "\(.goarch) \(.path)"' dist/artifacts.json)
+          if (( count != 2 )); then
+            echo "::error::Expected 2 linux binaries in dist/artifacts.json, found ${count}."
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+
+      - name: Login to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        shell: bash
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            --sbom=true \
+            --provenance=true \
+            --tag "ghcr.io/avivsinai/sabx:${TAG}" \
+            --tag ghcr.io/avivsinai/sabx:latest \
+            --file Dockerfile.release \
+            --push \
+            docker-context
 
   skill-publish:
     name: Publish Skills
