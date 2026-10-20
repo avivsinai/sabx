@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Publish the Homebrew formula to `avivsinai/homebrew-tap` via GoReleaser `brews` (same token and Formula layout as bitbucket-cli, jk, and amq).
 
 ### Fixed
+- `sabx login` on macOS release binaries failed with "open keyring: Specified keyring backend not available": the darwin binaries were cross-compiled on Linux without cgo, and the macOS Keychain backend needs cgo. Releases now build the darwin binaries with cgo on a macOS runner.
+- macOS release binaries are signed with a Developer ID (identifier `io.github.avivsinai.sabx`) and notarized when the release signing secrets are configured. Keychain then keys the API key's partition to the team ID instead of the build hash, so one "Always Allow" survives `brew upgrade`. Without the secrets, releases are signed ad-hoc with the same identifier.
 - Documented the live install command `brew install avivsinai/tap/sabx` alongside `go install`, GitHub release archives, Docker, and source.
 - Consolidated skill publishing into the release workflow so it no longer depends on tag-push events that `GITHUB_TOKEN` cannot trigger.
 - Pinned all GitHub Actions to commit SHAs across every workflow for supply-chain safety.

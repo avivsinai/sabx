@@ -1,2 +1,4 @@
 # Auto-generated fingerprints for false positives
 af4fffe04cfa787e61b0b768a982cfd43c52c355:test/e2e/smoke_test.go:credentials-go:23
+13a31f7c4ca5a1e68b42e59eb1c4185f4af6466d:tools/goreleaser.yaml:credentials-yaml-quoted:55
+13a31f7c4ca5a1e68b42e59eb1c4185f4af6466d:tools/goreleaser.yaml:credentials-yaml-unquoted:55
