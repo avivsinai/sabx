@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.12] - 2026-10-20
 ### Changed
 - Publish the Homebrew formula to `avivsinai/homebrew-tap` via GoReleaser `brews` (same token and Formula layout as bitbucket-cli, jk, and amq).
 
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Pinned all GitHub Actions to commit SHAs across every workflow for supply-chain safety.
 - Added missing `timeout-minutes` and `concurrency` blocks to all workflows.
 - Standalone publish-skill workflow now accepts `workflow_dispatch` with an explicit `tag` input.
+
 
 ## [0.1.11] - 2026-04-02
 ### Fixed
