@@ -53,6 +53,9 @@ notarize:
         issuer_id: "{{ .Env.APPLE_NOTARY_ISSUER_ID }}"
         key_id: "{{ .Env.APPLE_NOTARY_KEY_ID }}"
         key: "env:APPLE_NOTARY_KEY_P8_BASE64"
+        # wait: true makes the release fail when Apple rejects a binary (the
+        # error carries Apple's log) or the wait times out. Without it the
+        # release publishes binaries that are not notarized.
         wait: true
         # GoReleaser's maximum: Apple rejects longer-lived API tokens.
         timeout: 20m
@@ -95,14 +98,16 @@ brews:
       email: github-actions[bot]@users.noreply.github.com
     install: |
       bin.install "sabx"
-    # Re-sign ad-hoc only when the release is not Developer ID signed: an
-    # ad-hoc re-sign would replace the Developer ID signature.
+    # Re-sign ad-hoc only when the installed binary has no team: an ad-hoc
+    # re-sign would replace a Developer ID signature. The check reads the
+    # installed binary, so it holds even when release signing was skipped.
     extra_install: |
-      {{- if ne (envOrDefault "SABX_MACOS_SIGN" "") "true" }}
       if OS.mac?
-        system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", bin/"sabx"
+        signature = Utils.popen_read("/usr/bin/codesign", "-dv", bin/"sabx", err: :out)
+        unless signature.match?(/^TeamIdentifier=(?!not set$)\S+$/)
+          system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", bin/"sabx"
+        end
       end
-      {{- end }}
     test: |
       system "#{bin}/sabx", "--version"
 

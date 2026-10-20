@@ -53,7 +53,11 @@ GoReleaser signs the darwin binaries with a Developer ID and notarizes them (`no
 - `APPLE_NOTARY_KEY_ID`
 - `APPLE_NOTARY_KEY_P8_BASE64`: base64 of an App Store Connect API key (.p8)
 
-Set all six or none. With none, the release warns, ships the Go linker's ad-hoc signature, and the Homebrew formula re-signs ad-hoc with `io.github.avivsinai.sabx` at install time. With some, the release fails. Encode the two base64 values without line breaks (`base64 -i FILE | tr -d '\n'`).
+Set all six or none. With none, the release warns and ships the Go linker's ad-hoc signature. With some, the release fails. Encode the two base64 values without line breaks (`base64 -i FILE | tr -d '\n'`).
+
+Notarization waits for Apple's verdict (`wait: true`, at most 20 minutes per binary). The release fails, before it publishes anything, when Apple rejects a binary or the wait times out; the error contains Apple's notarization log. Do not remove `wait: true`: without it, GoReleaser only submits and the release publishes binaries that are not notarized.
+
+At install time, the Homebrew formula reads the installed binary with `codesign -dv`. When it has no `TeamIdentifier`, the formula re-signs it ad-hoc with `io.github.avivsinai.sabx`. A Developer ID binary keeps its signature.
 
 Ad-hoc binaries get a new Keychain partition ID (`cdhash:`) per build, so users must approve Keychain access again after each upgrade. Developer ID binaries share one `teamid:` partition ID, so one "Always Allow" survives upgrades. Signed binaries have the identifier `sabx` (quill uses the binary name). Keep the binary name and the team: a changed identifier or team makes every user approve again.
 
