@@ -158,7 +158,8 @@ jobs:
     runs-on: ubuntu-latest
     needs: [prepare, verify]
     if: needs.prepare.result == 'success' && needs.verify.result == 'success'
-    timeout-minutes: 30
+    # Notarization waits up to 20 minutes for each of the two darwin binaries.
+    timeout-minutes: 75
     permissions:
       contents: write
       id-token: write
@@ -233,6 +234,60 @@ jobs:
           output_path.write_text(match.group(0).strip() + "\n", encoding="utf-8")
           PY
 
+      # A Developer ID signature gives the binary a stable Keychain partition
+      # ID (teamid:), so one "Always Allow" survives upgrades. Ad-hoc builds
+      # get a new cdhash: partition per release and prompt again. GoReleaser
+      # signs and notarizes with quill (notarize.macos in tools/goreleaser.yaml)
+      # when this step sets enabled=true.
+      - name: Check macOS signing secrets
+        id: macos_signing
+        shell: bash
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
+        run: |
+          set -euo pipefail
+          names=(APPLE_TEAM_ID APPLE_DEVELOPER_ID_P12_BASE64 APPLE_DEVELOPER_ID_P12_PASSWORD APPLE_NOTARY_ISSUER_ID APPLE_NOTARY_KEY_ID APPLE_NOTARY_KEY_P8_BASE64)
+          present=0
+          for name in "${names[@]}"; do
+            [[ -n "${!name:-}" ]] && present=$((present + 1))
+          done
+          if (( present == 0 )); then
+            echo "::warning::macOS binaries are signed ad-hoc: the APPLE_* signing secrets are not configured, so users get a Keychain prompt after each upgrade."
+            echo "enabled=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if (( present != ${#names[@]} )); then
+            echo "::error::Set all APPLE_* signing secrets or none (see docs/RELEASING.md)."
+            exit 1
+          fi
+
+          # quill decodes these values with a strict base64 decoder.
+          for name in APPLE_DEVELOPER_ID_P12_BASE64 APPLE_NOTARY_KEY_P8_BASE64; do
+            if [[ "${!name:-}" =~ [[:space:]] ]]; then
+              echo "::error::${name} must be base64 without line breaks."
+              exit 1
+            fi
+          done
+
+          # quill writes the team of the certificate into the signature. Check that
+          # team before the release builds anything. Keychain Access exports .p12 files
+          # with ciphers that OpenSSL 3 reads only with -legacy.
+          read_certs() {
+            printf '%s' "$APPLE_DEVELOPER_ID_P12_BASE64" | base64 --decode \
+              | openssl pkcs12 -nokeys -clcerts -passin env:APPLE_DEVELOPER_ID_P12_PASSWORD "$@"
+          }
+          certs="$(read_certs 2>/dev/null || read_certs -legacy)"
+          if ! awk -v team="($APPLE_TEAM_ID)" '/^subject=.*Developer ID Application: / && index($0, team) { found = 1 } END { exit !found }' <<<"$certs"; then
+            echo "::error::APPLE_DEVELOPER_ID_P12_BASE64 has no 'Developer ID Application' certificate for APPLE_TEAM_ID."
+            exit 1
+          fi
+          echo "enabled=true" >>"$GITHUB_OUTPUT"
+
       - name: GoReleaser
         uses: goreleaser/goreleaser-action@a4f02ab5355a589de60d917a659ce617ed19b3de # v7
         with:
@@ -242,6 +297,12 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HOMEBREW_TAP_GITHUB_TOKEN: ${{ secrets.HOMEBREW_TAP_GITHUB_TOKEN }}
+          SABX_MACOS_SIGN: ${{ steps.macos_signing.outputs.enabled }}
+          APPLE_DEVELOPER_ID_P12_BASE64: ${{ secrets.APPLE_DEVELOPER_ID_P12_BASE64 }}
+          APPLE_DEVELOPER_ID_P12_PASSWORD: ${{ secrets.APPLE_DEVELOPER_ID_P12_PASSWORD }}
+          APPLE_NOTARY_ISSUER_ID: ${{ secrets.APPLE_NOTARY_ISSUER_ID }}
+          APPLE_NOTARY_KEY_ID: ${{ secrets.APPLE_NOTARY_KEY_ID }}
+          APPLE_NOTARY_KEY_P8_BASE64: ${{ secrets.APPLE_NOTARY_KEY_P8_BASE64 }}
 
       - name: Upload dist artifacts
         if: always()

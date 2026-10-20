@@ -31,6 +31,32 @@ builds:
       post:
         - sh -ceu 'if [ "$2" = darwin ] && [ "$(uname -s)" = Darwin ]; then codesign --force --sign - --identifier io.github.avivsinai.sabx "$1"; fi' _ "{{ .Path }}" "{{ .Os }}"
 
+# Release builds sign the darwin binaries with our Developer ID and notarize
+# them (quill, so this runs on the Linux release runner). release.yml sets
+# SABX_MACOS_SIGN=true only when all APPLE_* signing secrets are present.
+#
+# Keychain matches each caller by a partition ID. Ad-hoc code gets
+# `cdhash:<hash>`, which changes on every build, so each upgrade prompts again.
+# Developer ID code gets `teamid:<TEAM_ID>`, which is stable, so one "Always
+# Allow" survives upgrades. quill sets the signing identifier to the binary
+# name, `sabx`; keep the binary name and the team, or every user approves again.
+notarize:
+  macos:
+    - enabled: '{{ eq (envOrDefault "SABX_MACOS_SIGN" "") "true" }}'
+      ids: [sabx]
+      sign:
+        # quill reads and base64-decodes these variables itself, so the
+        # secret bytes never pass through the template engine.
+        certificate: "env:APPLE_DEVELOPER_ID_P12_BASE64"
+        password: "{{ .Env.APPLE_DEVELOPER_ID_P12_PASSWORD }}"
+      notarize:
+        issuer_id: "{{ .Env.APPLE_NOTARY_ISSUER_ID }}"
+        key_id: "{{ .Env.APPLE_NOTARY_KEY_ID }}"
+        key: "env:APPLE_NOTARY_KEY_P8_BASE64"
+        wait: true
+        # GoReleaser's maximum: Apple rejects longer-lived API tokens.
+        timeout: 20m
+
 archives:
   - id: sabx-archive
     ids: [sabx]
@@ -69,10 +95,14 @@ brews:
       email: github-actions[bot]@users.noreply.github.com
     install: |
       bin.install "sabx"
+    # Re-sign ad-hoc only when the release is not Developer ID signed: an
+    # ad-hoc re-sign would replace the Developer ID signature.
     extra_install: |
+      {{- if ne (envOrDefault "SABX_MACOS_SIGN" "") "true" }}
       if OS.mac?
         system "/usr/bin/codesign", "--force", "--sign", "-", "--identifier", "io.github.avivsinai.sabx", bin/"sabx"
       end
+      {{- end }}
     test: |
       system "#{bin}/sabx", "--version"
 

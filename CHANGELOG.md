@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Publish the Homebrew formula to `avivsinai/homebrew-tap` via GoReleaser `brews` (same token and Formula layout as bitbucket-cli, jk, and amq).
 
 ### Fixed
+- macOS release binaries are signed with a Developer ID and notarized when the release signing secrets are configured. Keychain then keys the API key's partition to the team ID instead of the build hash, so one "Always Allow" survives `brew upgrade`. The first run of the first signed release asks one last time.
 - Documented the live install command `brew install avivsinai/tap/sabx` alongside `go install`, GitHub release archives, Docker, and source.
 - Consolidated skill publishing into the release workflow so it no longer depends on tag-push events that `GITHUB_TOKEN` cannot trigger.
 - Pinned all GitHub Actions to commit SHAs across every workflow for supply-chain safety.
