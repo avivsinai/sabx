@@ -25,7 +25,7 @@ brew install avivsinai/tap/sabx
 ### Go
 
 ```bash
-# Go 1.25+
+# Go 1.26+
 go install github.com/avivsinai/sabx/cmd/sabx@latest
 ```
 
