@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.14] - 2026-10-25
+
 ## [0.1.13] - 2026-10-25
 ### Security
 - Build with the Go 1.26.10 toolchain and with golang.org/x/crypto 0.58.0 and
