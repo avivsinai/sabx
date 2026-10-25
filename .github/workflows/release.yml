@@ -185,6 +185,10 @@ jobs:
           else
             gh api "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/${TAG}" -f sha="$RELEASE_SHA" >/dev/null
           fi
+          # The API created the tag on the server; this checkout does not see
+          # it until it is fetched, and later steps (GoReleaser, gh release
+          # create --verify-tag) validate against the local tag.
+          git fetch --force --tags origin
 
       - name: Extract release notes for this tag
         shell: bash
