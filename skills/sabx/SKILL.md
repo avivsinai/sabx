@@ -1,6 +1,6 @@
 ---
 name: sabx
-version: 0.1.12
+version: 0.1.13
 description: Manage SABnzbd queues, history, NZBs, priorities, limits, RSS feeds, schedules, and server state through sabx.
 metadata:
   short-description: SABnzbd CLI for download automation

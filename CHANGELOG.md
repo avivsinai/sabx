@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-10-25
 ### Security
 - Build with the Go 1.26.10 toolchain and with golang.org/x/crypto 0.58.0 and
   golang.org/x/text 0.43.0, which fix published security advisories.
@@ -14,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 - Building from source requires Go 1.26 or later.
+
 
 ## [0.1.12] - 2026-10-20
 ### Changed
