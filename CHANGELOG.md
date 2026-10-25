@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+- Release workflow re-fetches the freshly created tag before the publishing steps; v0.1.14's run failed in GoReleaser because the checkout still only had pre-creation tags.
+
 ## [0.1.14] - 2026-10-25
 ### Fixed
 - Release workflow creates the `v*` tag with the release App and pushes the
