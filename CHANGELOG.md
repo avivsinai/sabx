@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Security
+- Build with the Go 1.26.10 toolchain and with golang.org/x/crypto 0.58.0 and
+  golang.org/x/text 0.43.0, which fix published security advisories.
+- Release and skill-publishing workflows run on Node 24.
+
+### Changed
+- Building from source requires Go 1.26 or later.
+
 ## [0.1.12] - 2026-10-20
 ### Changed
 - Publish the Homebrew formula to `avivsinai/homebrew-tap` via GoReleaser `brews` (same token and Formula layout as bitbucket-cli, jk, and amq).
