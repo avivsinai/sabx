@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 ## [Unreleased]
 
 ## [0.1.14] - 2026-10-25
+### Fixed
+- Release workflow creates the `v*` tag with the release App and pushes the
+  Homebrew tap formula with a short-lived App token. The v0.1.13 release
+  published its binaries but failed at the tap step on an expired PAT, so the
+  tap, Docker image and skills jobs were skipped; this release completes them.
 
 ## [0.1.13] - 2026-10-25
 ### Security
