@@ -106,10 +106,10 @@ scoops:
       owner: avivsinai
       name: scoop-bucket
       branch: main
+      token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/avivsinai/sabx
     description: Full-fidelity SABnzbd CLI
     license: MIT
-    skip_upload: true
     commit_author:
       name: sabx automation
       email: releases@sabx.dev
