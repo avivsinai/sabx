@@ -468,7 +468,9 @@ type HistorySlot struct {
 		Stage string `json:"stage"`
 		Log   string `json:"log"`
 	} `json:"stage_log"`
-	Completed string `json:"completed"`
+	Completed Stringish `json:"completed"`
+	Bytes     Stringish `json:"bytes"`
+	Storage   string    `json:"storage"`
 }
 
 // DeleteHistory removes items from history.
@@ -931,6 +933,33 @@ type AddResponse struct {
 // Success reports whether SABnzbd accepted the add operation.
 func (a AddResponse) Success() bool {
 	return bool(a.Status)
+}
+
+// Stringish holds a value SABnzbd sends as either a JSON string or a number
+// (e.g. history "completed" is a Unix timestamp number in SABnzbd 4+).
+type Stringish string
+
+// UnmarshalJSON accepts a JSON string, number, or null.
+func (s *Stringish) UnmarshalJSON(data []byte) error {
+	dataStr := strings.TrimSpace(string(data))
+	if dataStr == "null" {
+		*s = ""
+		return nil
+	}
+	if len(dataStr) > 0 && dataStr[0] == '"' {
+		var v string
+		if err := json.Unmarshal(data, &v); err != nil {
+			return err
+		}
+		*s = Stringish(v)
+		return nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err != nil {
+		return fmt.Errorf("stringish: %w", err)
+	}
+	*s = Stringish(n.String())
+	return nil
 }
 
 // Boolish handles SABnzbd's inconsistent boolean encoding.

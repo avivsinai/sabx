@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Fixed
+- `history list` and `dump state` failed with `cannot unmarshal number into ... HistorySlot.completed of type string`: SABnzbd 4+ sends history `completed` (and `bytes`) as numbers. These fields now accept a JSON string or number, and history slots also carry `bytes` and `storage`.
 
 ## [0.1.16] - 2026-10-25
 ### Fixed
