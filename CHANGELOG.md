@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
+### Added
+- Cut a release from GitHub Actions: the `Release Request` workflow takes `version` (X.Y.Z), runs `scripts/release.sh --ci`, and opens the `chore(release): vX.Y.Z` PR with squash auto-merge.
+
 ### Fixed
 - `history list` and `dump state` failed with `cannot unmarshal number into ... HistorySlot.completed of type string`: SABnzbd 4+ sends history `completed` (and `bytes`) as numbers. These fields now accept a JSON string or number, and history slots also carry `bytes` and `storage`.
 

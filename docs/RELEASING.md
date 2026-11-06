@@ -16,13 +16,14 @@ This project follows **Semantic Versioning (SemVer)** using annotated git tags o
 
 ## Creating a release
 
-1. Use the release helper from `main`:
+1. From GitHub Actions, run **Release Request** on `main` and supply `version` as `X.Y.Z`. The workflow mints a release App token, runs `./scripts/release.sh X.Y.Z --ci --skip-verify`, pushes `release/vX.Y.Z`, and opens the `chore(release): vX.Y.Z` PR with squash auto-merge. Using the App token means the squash merge can trigger `.github/workflows/release.yml`.
+2. To prepare the same PR locally from `main`:
    ```bash
    ./scripts/release.sh X.Y.Z
    ```
-   The helper verifies the worktree is clean and at `origin/main`, creates `release/vX.Y.Z`, moves `CHANGELOG.md` into a dated release entry, bumps skill/plugin metadata, runs verification, commits `chore(release): vX.Y.Z`, pushes the branch, opens a PR, and enables squash auto-merge by default.
-2. Let the release PR merge. Do not create or push tags manually.
-3. After the release PR merges, GitHub Actions will automatically:
+   The helper verifies the worktree is clean and at `origin/main`, creates `release/vX.Y.Z`, moves `CHANGELOG.md` into a dated release entry, bumps skill/plugin metadata, runs verification, commits `chore(release): vX.Y.Z`, pushes the branch, opens a PR, and enables squash auto-merge by default. Pass `--ci --no-push` to prepare the commit without pushing.
+3. Let the release PR merge. Do not create or push tags manually.
+4. After the release PR merges, GitHub Actions will automatically:
    - validate the merged release commit,
    - create `vX.Y.Z` only after verification succeeds,
    - publish release artifacts via GoReleaser on a macOS runner,
@@ -30,8 +31,8 @@ This project follows **Semantic Versioning (SemVer)** using annotated git tags o
    - build and push the `ghcr.io/avivsinai/sabx` image (with SBOM and provenance attestations) on a Linux runner from the same linux binaries,
    - push `Formula/sabx.rb` to [`avivsinai/homebrew-tap`](https://github.com/avivsinai/homebrew-tap) via GoReleaser `brews` (same path as `bitbucket-cli`, `jk`, and `amq`),
    - publish skills from the CI-created tag.
-4. The release workflow needs `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `avivsinai/homebrew-tap`. That is the same secret used by the other CLI release workflows.
-5. macOS binaries are signed as described in [macOS signing](#macos-signing).
+5. The release workflow needs `HOMEBREW_TAP_GITHUB_TOKEN` with write access to `avivsinai/homebrew-tap`. That is the same secret used by the other CLI release workflows.
+6. macOS binaries are signed as described in [macOS signing](#macos-signing).
 
 Users install with:
 

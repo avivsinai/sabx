@@ -7,7 +7,7 @@ Usage: ./scripts/release.sh X.Y.Z [options]
 
 Prepares a release PR from main by:
 - verifying the worktree is clean
-- verifying HEAD matches origin/main
+- verifying HEAD matches origin/main (skipped with --ci)
 - creating release/vX.Y.Z
 - moving CHANGELOG.md's Unreleased section into a versioned release entry
 - bumping skill/plugin metadata versions
@@ -21,11 +21,15 @@ Options:
   --skip-verify      Skip SABX_E2E_DISABLE=1 make test, make smoke, and make build
   --allow-empty      Allow releasing with an empty Unreleased section
   --no-auto-merge    Create the PR but do not enable auto-merge
+  --ci               Skip local main/origin sync checks; require GH_TOKEN unless --no-push
+  --no-push          Prepare and commit locally; do not push or open a PR
   -h, --help         Show this help text
 
 Examples:
   ./scripts/release.sh 0.1.9
   ./scripts/release.sh 0.1.9 --no-auto-merge
+  ./scripts/release.sh 0.1.9 --ci --skip-verify
+  ./scripts/release.sh 0.1.9 --ci --no-push --skip-verify
 EOF
 }
 
@@ -41,6 +45,8 @@ release_date="$(date -u +%Y-%m-%d)"
 skip_verify=0
 allow_empty=0
 auto_merge=1
+ci=0
+no_push=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -65,6 +71,14 @@ while [ $# -gt 0 ]; do
       auto_merge=0
       shift
       ;;
+    --ci)
+      ci=1
+      shift
+      ;;
+    --no-push)
+      no_push=1
+      shift
+      ;;
     --*)
       echo "error: unknown option: $1" >&2
       usage >&2
@@ -85,8 +99,16 @@ done
 [ -n "$version" ] || { usage >&2; exit 1; }
 
 require_command git
-require_command gh
 require_command python3
+if [ "$no_push" -eq 0 ]; then
+  require_command gh
+fi
+if [ "$ci" -eq 1 ] && [ "$no_push" -eq 0 ]; then
+  if [ -z "${GH_TOKEN:-}" ] && [ -z "${GITHUB_TOKEN:-}" ]; then
+    echo "error: --ci requires GH_TOKEN (or GITHUB_TOKEN) unless --no-push is set" >&2
+    exit 1
+  fi
+fi
 
 printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$' || {
   echo "error: version must be X.Y.Z or X.Y.Z-rc.1, got: $version" >&2
@@ -109,20 +131,22 @@ git diff --cached --quiet --ignore-submodules -- || {
   exit 1
 }
 
-current_branch="$(git branch --show-current)"
-[ "$current_branch" = "main" ] || {
-  echo "error: releases must be prepared from main; current branch is $current_branch" >&2
-  exit 1
-}
-
 git fetch --quiet origin main --tags
 
-local_head="$(git rev-parse HEAD)"
-remote_head="$(git rev-parse origin/main)"
-[ "$local_head" = "$remote_head" ] || {
-  echo "error: local main is not at origin/main; pull or reset before releasing" >&2
-  exit 1
-}
+if [ "$ci" -eq 0 ]; then
+  current_branch="$(git branch --show-current)"
+  [ "$current_branch" = "main" ] || {
+    echo "error: releases must be prepared from main; current branch is $current_branch" >&2
+    exit 1
+  }
+
+  local_head="$(git rev-parse HEAD)"
+  remote_head="$(git rev-parse origin/main)"
+  [ "$local_head" = "$remote_head" ] || {
+    echo "error: local main is not at origin/main; pull or reset before releasing" >&2
+    exit 1
+  }
+fi
 
 if git show-ref --verify --quiet "refs/heads/${branch}"; then
   echo "error: branch already exists locally: ${branch}" >&2
@@ -224,6 +248,16 @@ git diff --cached --quiet && {
 }
 
 git commit -m "chore(release): ${tag}"
+
+if [ "$no_push" -eq 1 ]; then
+  echo ""
+  echo "Prepared ${tag} (not pushed)"
+  echo "Release branch: ${branch}"
+  echo "Pull request: not created (--no-push)"
+  echo "Auto-merge: not enabled"
+  exit 0
+fi
+
 git push -u origin "$branch"
 
 pr_body=$(

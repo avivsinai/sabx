@@ -1,0 +1,117 @@
+name: Release Request
+
+run-name: Release request ${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Exact release version (X.Y.Z)
+        required: true
+        type: string
+
+# Writes use the release GitHub App token so the squash merge can trigger
+# release.yml. The job token only needs to read the repository.
+permissions:
+  contents: read
+
+concurrency:
+  group: >-
+    release-request-${{
+      github.ref != 'refs/heads/main' &&
+      format('rejected-{0}', github.run_id) ||
+      github.repository
+    }}
+  cancel-in-progress: false
+
+jobs:
+  release-request:
+    name: Open release PR
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require main
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "::error::Release requests must run from main (got ${GITHUB_REF})."
+            exit 1
+          fi
+
+      - name: Validate version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$RELEASE_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::version must be X.Y.Z, got: ${RELEASE_VERSION}"
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/heads/main
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require release App
+        env:
+          APP_CLIENT_ID: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$APP_CLIENT_ID" ] || [ -z "$APP_PRIVATE_KEY" ]; then
+            echo "::error::RELEASE_APP_CLIENT_ID and RELEASE_APP_PRIVATE_KEY must be configured so the merge can trigger release.yml."
+            exit 1
+          fi
+
+      - name: Mint release App token
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Open release pull request
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          GH_PROMPT_DISABLED: "1"
+          GH_NO_UPDATE_NOTIFIER: "1"
+          RELEASE_VERSION: ${{ inputs.version }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ -z "$APP_SLUG" ]; then
+            echo "::error::create-github-app-token did not return app-slug."
+            exit 1
+          fi
+
+          git config user.name "${APP_SLUG}[bot]"
+          git config user.email "${APP_SLUG}[bot]@users.noreply.github.com"
+
+          # GitHub git-over-HTTPS wants basic auth, not a bearer token. Keep the
+          # token off argv and out of the remote URL; Actions masks GH_TOKEN.
+          git_auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | openssl base64 -A)"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="http.https://github.com/.extraheader"
+          export GIT_CONFIG_VALUE_0="$git_auth_header"
+
+          git fetch --quiet origin main --tags
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "::error::Checked-out main does not match origin/main."
+            exit 1
+          fi
+
+          # PR CI and release.yml verify the merged commit; skip the local
+          # test/build loop so this job stays a request, not a second test matrix.
+          ./scripts/release.sh "$RELEASE_VERSION" --ci --skip-verify
