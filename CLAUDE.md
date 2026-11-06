@@ -8,7 +8,7 @@ sabx is a CLI tool for managing SABnzbd download servers. It uses Cobra for comm
 
 ## Release Contract
 
-- Release from `main` only through `./scripts/release.sh X.Y.Z` and the resulting release PR; do not create manual tags or GitHub releases.
+- Release from `main` only through the `Release Request` workflow (`workflow_dispatch` with `version`) or `./scripts/release.sh X.Y.Z`, and the resulting release PR; do not create manual tags or GitHub releases.
 - A push to `main` updates the AvivSinai marketplace immediately for the `sabx` skill.
 - Keep `CHANGELOG.md` and skill/plugin metadata on one version in the release commit; after the release PR merges, CI validates the merged commit, creates the tag, publishes the GitHub release, and uses the committed changelog entry as the release notes.
 
